@@ -22,7 +22,7 @@ import { StockItem, StockMovement, WasteCategory } from '../types';
 interface StockFefoViewProps {
   stockItems: StockItem[];
   stockMovements: StockMovement[];
-  onAddMovement: (mov: Omit<StockMovement, 'id'>) => void;
+  onAddMovement: (mov: Omit<StockMovement, 'id'>) => Promise<void> | void;
   onOpenDonationModalWithItem?: (itemName: string, category: WasteCategory, qty: number) => void;
   onOpenInvoiceModal?: () => void;
 }
@@ -38,12 +38,13 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
   const [fefoFilter, setFefoFilter] = useState<string>('ALL');
   const [storageFilter, setStorageFilter] = useState<string>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal for new movement
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
   const [movementType, setMovementType] = useState<'Entrada' | 'Saída' | 'Ajuste / Inventário' | 'Quebra / Desperdício'>('Saída');
-  const [movementQty, setMovementQty] = useState<number>(5);
+  const [movementQty, setMovementQty] = useState<number>(1);
   const [movementReason, setMovementReason] = useState('Confeção e serviço do dia');
 
   // Today's date for FEFO calculation
@@ -51,6 +52,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
 
   // FEFO Priority Calculation helper
   const getDaysUntilExpiry = (expiryDateStr: string) => {
+    if (!expiryDateStr) return 999;
     const exp = new Date(expiryDateStr);
     const now = new Date(today);
     const diffTime = exp.getTime() - now.getTime();
@@ -58,20 +60,24 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
   };
 
   const filteredItems = stockItems.filter((item) => {
+    const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.batchNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      (item.name || '').toLowerCase().includes(searchLower) ||
+      (item.code || '').toLowerCase().includes(searchLower) ||
+      (item.batchNumber || '').toLowerCase().includes(searchLower);
 
     const matchesFefo = fefoFilter === 'ALL' || item.fefoPriority === fefoFilter;
     const matchesStorage = storageFilter === 'ALL' || item.storageType === storageFilter;
     const matchesCategory = categoryFilter === 'ALL' || item.category === categoryFilter;
 
-    return matchesSearch && matchesFefo && matchesStorage;
+    // Correção: inclusão do filtro de categoria na condição de retorno
+    return matchesSearch && matchesFefo && matchesStorage && matchesCategory;
   });
 
   // Sort items by expiration date ascending (FEFO rule: first expire first)
-  const sortedFefoItems = [...filteredItems].sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+  const sortedFefoItems = [...filteredItems].sort(
+    (a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
+  );
 
   const handleOpenMovementModal = (item: StockItem) => {
     setSelectedStockItem(item);
@@ -79,22 +85,28 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
     setIsMovementModalOpen(true);
   };
 
-  const handleSaveMovement = (e: React.FormEvent) => {
+  const handleSaveMovement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStockItem || movementQty <= 0) return;
 
-    onAddMovement({
-      stockItemId: selectedStockItem.id,
-      itemName: selectedStockItem.name,
-      type: movementType,
-      quantity: movementQty,
-      unit: selectedStockItem.unit,
-      date: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      responsible: 'João Silva (Gestor de Armazém)',
-      reason: movementReason
-    });
-
-    setIsMovementModalOpen(false);
+    try {
+      setIsSubmitting(true);
+      await onAddMovement({
+        stockItemId: selectedStockItem.id,
+        itemName: selectedStockItem.name,
+        type: movementType,
+        quantity: movementQty,
+        unit: selectedStockItem.unit,
+        date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        responsible: 'Utilizador Autenticado',
+        reason: movementReason
+      });
+      setIsMovementModalOpen(false);
+    } catch (err) {
+      console.error('Erro ao registar movimento:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -271,14 +283,14 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
                       <td className="px-4 py-3.5">
                         <span className="font-bold text-slate-900 block text-sm">{item.name}</span>
                         <span className="text-[10px] text-slate-500 font-mono">
-                          {item.code} | {item.category}
+                          {item.code || 'S/N'} | {item.category}
                         </span>
                       </td>
 
                       {/* Batch & Supplier */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <span className="font-mono font-semibold text-slate-800 block text-xs">
-                          {item.batchNumber}
+                          {item.batchNumber || 'N/A'}
                         </span>
                         <span className="text-[11px] text-slate-500">
                           {item.supplier || 'Fornecedor Certificado'}
@@ -287,7 +299,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
 
                       {/* Expiry Countdown */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="font-bold text-slate-900 block flex items-center gap-1">
+                        <span className="font-bold text-slate-900 flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" /> {item.expiryDate}
                         </span>
                         <span
@@ -311,7 +323,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
                           {item.quantity} {item.unit}
                         </span>
                         <span className="text-[10px] text-slate-500">
-                          ({item.costPerUnit.toFixed(2)} €/{item.unit})
+                          ({(item.costPerUnit || 0).toFixed(2)} €/{item.unit})
                         </span>
                       </td>
 
@@ -353,32 +365,36 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
       <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm space-y-3">
         <h3 className="text-base font-bold text-slate-900">Histórico Recente de Movimentos de Stock</h3>
         <div className="space-y-2 text-xs">
-          {stockMovements.map((mov) => (
-            <div key={mov.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span
-                  className={`p-2 rounded-lg font-bold text-[10px] uppercase ${
-                    mov.type === 'Entrada'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : mov.type === 'Saída'
-                      ? 'bg-sky-100 text-sky-800'
-                      : 'bg-rose-100 text-rose-800'
-                  }`}
-                >
-                  {mov.type}
-                </span>
-                <div>
-                  <span className="font-bold text-slate-800 text-sm block">{mov.itemName}</span>
-                  <span className="text-slate-500 text-[11px]">
-                    Motivo: {mov.reason} | Resp: {mov.responsible} ({mov.date})
+          {stockMovements.length === 0 ? (
+            <p className="text-slate-400 text-center py-4">Sem registo recente de movimentos.</p>
+          ) : (
+            stockMovements.map((mov) => (
+              <div key={mov.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`p-2 rounded-lg font-bold text-[10px] uppercase ${
+                      mov.type === 'Entrada'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : mov.type === 'Saída'
+                        ? 'bg-sky-100 text-sky-800'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}
+                  >
+                    {mov.type}
                   </span>
+                  <div>
+                    <span className="font-bold text-slate-800 text-sm block">{mov.itemName}</span>
+                    <span className="text-slate-500 text-[11px]">
+                      Motivo: {mov.reason} | Resp: {mov.responsible} ({mov.date})
+                    </span>
+                  </div>
+                </div>
+                <div className="font-bold text-slate-900 text-sm">
+                  {mov.type === 'Entrada' ? '+' : '-'}{mov.quantity} {mov.unit}
                 </div>
               </div>
-              <div className="font-bold text-slate-900 text-sm">
-                {mov.type === 'Entrada' ? '+' : '-'}{mov.quantity} {mov.unit}
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -396,7 +412,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
             <form onSubmit={handleSaveMovement} className="space-y-3 text-xs">
               <div className="bg-slate-50 p-3 rounded-xl border">
                 <span className="font-bold text-slate-900 text-sm block">{selectedStockItem.name}</span>
-                <span className="text-slate-500">Lote: {selectedStockItem.batchNumber} | Stock atual: {selectedStockItem.quantity} {selectedStockItem.unit}</span>
+                <span className="text-slate-500">Lote: {selectedStockItem.batchNumber || 'N/A'} | Stock atual: {selectedStockItem.quantity} {selectedStockItem.unit}</span>
               </div>
 
               <div>
@@ -417,9 +433,9 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Quantidade ({selectedStockItem.unit})</label>
                 <input
                   type="number"
-                  step="0.5"
-                  min="0.5"
-                  max={movementType === 'Saída' ? selectedStockItem.quantity : 1000}
+                  step="0.1"
+                  min="0.1"
+                  max={movementType === 'Saída' ? selectedStockItem.quantity : 10000}
                   value={movementQty}
                   onChange={(e) => setMovementQty(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl border font-bold text-sm"
@@ -440,15 +456,17 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsMovementModalOpen(false)}
+                  disabled={isSubmitting}
                   className="px-4 py-2 rounded-xl border font-semibold text-slate-700"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 disabled:opacity-50"
                 >
-                  Confirmar Movimento
+                  {isSubmitting ? 'A guardar...' : 'Confirmar Movimento'}
                 </button>
               </div>
             </form>
