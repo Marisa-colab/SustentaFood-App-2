@@ -5,6 +5,10 @@ export type WasteCategory =
   | 'Legumes'
   | 'Lacticínios'
   | 'Padaria'
+  | 'Água'
+  | 'Sumos'
+  | 'Bebidas Brancas'
+  | 'Cerveja'
   | 'Refeições Confecionadas'
   | 'Outros';
 
