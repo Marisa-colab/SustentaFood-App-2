@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import Login from './components/Login';
 import { verificarLicenca, LicencaStatus } from './services/licensingService';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
@@ -51,46 +52,118 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // --- ESTADOS DE AUTENTICAÇÃO E LICENCIAMENTO ---
-  const [user, setUser] = useState<any>(null);
-  const [licenceState, setLicenceState] = useState<LicencaStatus | null>(null);
-  const [isCheckingLicence, setIsCheckingLicence] = useState<boolean>(true);
-
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [licencaValida, setLicencaValida] = useState<boolean | null>(null);
+  const [organizacao, setOrganizacao] = useState<any>(null);
+  
   useEffect(() => {
     // 1. Obter sessão atual do Supabase
     supabase.auth.getSession().then(({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-
-      if (currentUser) {
-        verificarLicenca(currentUser.id).then((res) => {
-          setLicenceState(res);
-          setIsCheckingLicence(false);
-        });
-      } else {
-        setIsCheckingLicence(false);
-      }
+      setSession(session);
+      if (session) validarLicencaEOrg(session.user.id);
+      else setLoading(false);
     });
-
-    // 2. Escutar mudanças na autenticação
+    
+    // 2. Escutar alterações de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-
-      if (currentUser) {
-        setIsCheckingLicence(true);
-        verificarLicenca(currentUser.id).then((res) => {
-          setLicenceState(res);
-          setIsCheckingLicence(false);
-        });
-      } else {
-        setLicenceState(null);
-        setIsCheckingLicence(false);
+      setSession(session);
+      if (session) validarLicencaEOrg(session.user.id);
+      else {
+        setLicencaValida(null);
+        setLoading(false);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  async function validarLicencaEOrg(userId: string) {
+    setLoading(true);
+    try {
+      // Procura a organização do utilizador na tabela profiles ou utilizadores
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('organizacao_id, organizacoes(status_licença, valida_ate, nome)')
+        .eq('id', userId)
+        .single();
+
+      if (error || !profile || !profile.organizacoes) {
+        setLicencaValida(false);
+        setLoading(false);
+        return;
+      }
+
+      const org = profile.organizacoes;
+      const dataValidade = new Date(org.valida_ate);
+      const hoje = new Date();
+
+      // Valida se o status é 'ativa' e se a data de validade não passou
+      if (org.status_licença === 'ativa' && dataValidade >= hoje) {
+        setLicencaValida(true);
+        setOrganizacao({ id: profile.organizacao_id, nome: org.nome });
+      } else {
+        setLicencaValida(false);
+      }
+    } catch (err) {
+      setLicencaValida(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
+        A carregar sistema...
+      </div>
+    );
+  }
+
+  // Se não há utilizador autenticado
+  if (!session) {
+    return <Login />;
+  }
+
+  // Se a licença expirou ou está inativa
+  if (licencaValida === false) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white p-4">
+        <div className="max-w-md bg-slate-800 p-8 rounded-xl border border-red-500/50 text-center">
+          <h2 className="text-xl font-bold text-red-400 mb-2">Licença Inativa ou Expirada</h2>
+          <p className="text-slate-300 text-sm mb-6">
+            A licença de utilização desta organização encontra-se inativa ou expirada.
+          </p>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+          >
+            Sair / Mudar de Conta
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Utilizador Autenticado e Licença Válida
+  return (
+    <div>
+      {/* Botão de Terminar Sessão no Topo */}
+      <div className="bg-slate-950 px-6 py-2 flex justify-between items-center text-xs text-slate-400 border-b border-slate-800">
+        <span>Organização: <strong className="text-white">{organizacao?.nome}</strong></span>
+        <button onClick={handleLogout} className="hover:text-white underline">
+          Terminar Sessão
+        </button>
+      </div>
+
+      <MainDashboard organizacaoId={organizacao?.id} />
+    </div>
+  );
+}
   // Core Application Data State
   const [wasteLogs, setWasteLogs] = useState<WasteLog[]>(initialWasteLogs);
   const [stockItems, setStockItems] = useState<StockItem[]>(initialStockItems);
