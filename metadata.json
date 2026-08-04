@@ -1,0 +1,6 @@
+{
+  "name": "SustentaFood - Gestão do Desperdício Alimentar",
+  "description": "Sistema completo para registo de resíduos, análise de custos, rotação FEFO, controlo HACCP, doações, compostagem e previsões com IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
