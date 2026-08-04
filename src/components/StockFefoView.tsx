@@ -37,6 +37,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [fefoFilter, setFefoFilter] = useState<string>('ALL');
   const [storageFilter, setStorageFilter] = useState<string>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
 
   // Modal for new movement
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
@@ -64,6 +65,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
 
     const matchesFefo = fefoFilter === 'ALL' || item.fefoPriority === fefoFilter;
     const matchesStorage = storageFilter === 'ALL' || item.storageType === storageFilter;
+    const matchesCategory = categoryFilter === 'ALL' || item.category === categoryFilter;
 
     return matchesSearch && matchesFefo && matchesStorage;
   });
@@ -150,7 +152,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
           <input
@@ -162,24 +164,48 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
           />
         </div>
 
+        {/* Categorias Filter */}
+        <div>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-700 bg-white"
+          >
+            <option value="ALL">Todas as Categorias</option>
+            <option value="Carne">Carne</option>
+            <option value="Peixe">Peixe</option>
+            <option value="Frutas">Frutas</option>
+            <option value="Legumes">Legumes</option>
+            <option value="Lacticínios">Lacticínios</option>
+            <option value="Padaria">Padaria</option>
+            <option value="Água">Água</option>
+            <option value="Sumos">Sumos</option>
+            <option value="Bebidas Brancas">Bebidas Brancas</option>
+            <option value="Cerveja">Cerveja</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+
+        {/* FEFO Priority Filter */}
         <div>
           <select
             value={fefoFilter}
             onChange={(e) => setFefoFilter(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-700"
+            className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-700 bg-white"
           >
             <option value="ALL">Todas as Prioridades FEFO</option>
-            <option value="Crítico">Crítico (Validade Iminele &lt; 3 dias)</option>
+            <option value="Crítico">Crítico (Validade Iminente &lt; 3 dias)</option>
             <option value="Atenção">Atenção (Validade &lt; 7 dias)</option>
             <option value="Normal">Normal</option>
           </select>
         </div>
 
+        {/* Storage Type Filter */}
         <div>
           <select
             value={storageFilter}
             onChange={(e) => setStorageFilter(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-700"
+            className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-700 bg-white"
           >
             <option value="ALL">Todos os Ambientes de Armazenamento</option>
             <option value="Refrigerado">Refrigerado (+2ºC a +5ºC)</option>
