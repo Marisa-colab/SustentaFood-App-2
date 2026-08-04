@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from './supabaseClient';
+import { verificarLicenca, LicencaStatus } from './services/licensingService';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
 import { WasteLogView } from './components/WasteLogView';
@@ -47,6 +49,47 @@ import {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+
+  // --- ESTADOS DE AUTENTICAÇÃO E LICENCIAMENTO ---
+  const [user, setUser] = useState<any>(null);
+  const [licenceState, setLicenceState] = useState<LicencaStatus | null>(null);
+  const [isCheckingLicence, setIsCheckingLicence] = useState<boolean>(true);
+
+  useEffect(() => {
+    // 1. Obter sessão atual do Supabase
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (currentUser) {
+        verificarLicenca(currentUser.id).then((res) => {
+          setLicenceState(res);
+          setIsCheckingLicence(false);
+        });
+      } else {
+        setIsCheckingLicence(false);
+      }
+    });
+
+    // 2. Escutar mudanças na autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (currentUser) {
+        setIsCheckingLicence(true);
+        verificarLicenca(currentUser.id).then((res) => {
+          setLicenceState(res);
+          setIsCheckingLicence(false);
+        });
+      } else {
+        setLicenceState(null);
+        setIsCheckingLicence(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Core Application Data State
   const [wasteLogs, setWasteLogs] = useState<WasteLog[]>(initialWasteLogs);
@@ -270,6 +313,45 @@ export default function App() {
 
   const unreadAlertCount = alerts.filter((a) => !a.read).length;
 
+  // --- RENDERING: ECRÃ DE CARREGAMENTO DE LICENÇA ---
+  if (isCheckingLicence) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center font-sans">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-slate-400 font-medium">A verificar licença da subscrição...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDERING: ECRÃ DE LICENÇA EXPIRADA OU SUSPENSA ---
+  if (user && licenceState && !licenceState.acessoPermitido) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 font-sans">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md text-center space-y-5 shadow-2xl">
+          <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 mx-auto flex items-center justify-center font-bold text-2xl">
+            ⚠️
+          </div>
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-white mb-2">Acesso Restrito</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">{licenceState.motivo}</p>
+          </div>
+          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 text-[11px] text-slate-400">
+            Para renovar a sua subscrição ou esclarecer dúvidas sobre a licença do <strong>SustentaFood</strong>, entre em contacto com o suporte comercial.
+          </div>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-colors"
+          >
+            Terminar Sessão
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDERING: APLICAÇÃO PRINCIPAL (SE LICENÇA OK OU EM DESENVOLVIMENTO) ---
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
       {/* App Navigation Header */}
