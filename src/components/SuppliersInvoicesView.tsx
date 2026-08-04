@@ -449,6 +449,11 @@ export const SuppliersInvoicesView: React.FC<SuppliersInvoicesViewProps> = ({
                     <option value="Legumes">Legumes</option>
                     <option value="Lacticínios">Lacticínios</option>
                     <option value="Padaria">Padaria</option>
+                    <option value="Água">Água</option>
+                    <option value="Sumos">Sumos</option>
+                    <option value="Bebidas Brancas">Bebidas Brancas</option>
+                    <option value="Cerveja">Cerveja</option>
+                    <option value="Outros">Outros</option>
                   </select>
                 </div>
               </div>
