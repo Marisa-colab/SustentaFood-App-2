@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './components/Login';
-import { verificarLicenca, LicencaStatus } from './services/licensingService';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
 import { WasteLogView } from './components/WasteLogView';
@@ -56,115 +55,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [licencaValida, setLicencaValida] = useState<boolean | null>(null);
   const [organizacao, setOrganizacao] = useState<any>(null);
-  
-  useEffect(() => {
-    // 1. Obter sessão atual do Supabase
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) validarLicencaEOrg(session.user.id);
-      else setLoading(false);
-    });
-    
-    // 2. Escutar alterações de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) validarLicencaEOrg(session.user.id);
-      else {
-        setLicencaValida(null);
-        setLoading(false);
-      }
-    });
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  async function validarLicencaEOrg(userId: string) {
-    setLoading(true);
-    try {
-      // Procura a organização do utilizador na tabela profiles ou utilizadores
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('organizacao_id, organizacoes(status_licença, valida_ate, nome)')
-        .eq('id', userId)
-        .single();
-
-      if (error || !profile || !profile.organizacoes) {
-        setLicencaValida(false);
-        setLoading(false);
-        return;
-      }
-
-      const org = profile.organizacoes;
-      const dataValidade = new Date(org.valida_ate);
-      const hoje = new Date();
-
-      // Valida se o status é 'ativa' e se a data de validade não passou
-      if (org.status_licença === 'ativa' && dataValidade >= hoje) {
-        setLicencaValida(true);
-        setOrganizacao({ id: profile.organizacao_id, nome: org.nome });
-      } else {
-        setLicencaValida(false);
-      }
-    } catch (err) {
-      setLicencaValida(false);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
-        A carregar sistema...
-      </div>
-    );
-  }
-
-  // Se não há utilizador autenticado
-  if (!session) {
-    return <Login />;
-  }
-
-  // Se a licença expirou ou está inativa
-  if (licencaValida === false) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white p-4">
-        <div className="max-w-md bg-slate-800 p-8 rounded-xl border border-red-500/50 text-center">
-          <h2 className="text-xl font-bold text-red-400 mb-2">Licença Inativa ou Expirada</h2>
-          <p className="text-slate-300 text-sm mb-6">
-            A licença de utilização desta organização encontra-se inativa ou expirada.
-          </p>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
-          >
-            Sair / Mudar de Conta
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Utilizador Autenticado e Licença Válida
-  return (
-    <div>
-      {/* Botão de Terminar Sessão no Topo */}
-      <div className="bg-slate-950 px-6 py-2 flex justify-between items-center text-xs text-slate-400 border-b border-slate-800">
-        <span>Organização: <strong className="text-white">{organizacao?.nome}</strong></span>
-        <button onClick={handleLogout} className="hover:text-white underline">
-          Terminar Sessão
-        </button>
-      </div>
-
-      <MainDashboard organizacaoId={organizacao?.id} />
-    </div>
-  );
-}
-  // Core Application Data State
+  // --- CORE APPLICATION DATA STATE ---
   const [wasteLogs, setWasteLogs] = useState<WasteLog[]>(initialWasteLogs);
   const [stockItems, setStockItems] = useState<StockItem[]>(initialStockItems);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements);
@@ -186,10 +78,65 @@ export default function App() {
   const [isGlobalInvoiceModalOpen, setIsGlobalInvoiceModalOpen] = useState(false);
   const [prefillDonationItem, setPrefillDonationItem] = useState<{ name: string; category: WasteCategory; quantity: number } | null>(null);
 
-  // Today Date
-  const todayStr = new Date().toISOString().split('T')[0];
+  useEffect(() => {
+    // 1. Obter sessão atual do Supabase
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) validarLicencaEOrg(session.user.id);
+      else setLoading(false);
+    });
 
-  // Dynamic Metrics Calculation
+    // 2. Escutar alterações de autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) validarLicencaEOrg(session.user.id);
+      else {
+        setLicencaValida(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function validarLicencaEOrg(userId: string) {
+    setLoading(true);
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('organizacao_id, organizacoes(status_licença, valida_ate, nome)')
+        .eq('id', userId)
+        .single();
+
+      if (error || !profile || !profile.organizacoes) {
+        setLicencaValida(false);
+        setLoading(false);
+        return;
+      }
+
+      const org = profile.organizacoes;
+      const dataValidade = new Date(org.valida_ate);
+      const hoje = new Date();
+
+      if (org.status_licença === 'ativa' && dataValidade >= hoje) {
+        setLicencaValida(true);
+        setOrganizacao({ id: profile.organizacao_id, nome: org.nome });
+      } else {
+        setLicencaValida(false);
+      }
+    } catch (err) {
+      setLicencaValida(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // Metrics Calculation
+  const todayStr = new Date().toISOString().split('T')[0];
   const totalWasteKgToday = wasteLogs
     .filter((l) => l.date === todayStr || l.date === '2026-08-01')
     .reduce((acc, curr) => acc + curr.quantity, 0);
@@ -214,7 +161,7 @@ export default function App() {
     currentReductionPercent: 18.5
   };
 
-  // Handlers for Adding & Deleting Data
+  // Handlers
   const handleAddWasteLog = (newLogData: Omit<WasteLog, 'id'>) => {
     const newId = `LOG-${1000 + wasteLogs.length + 1}`;
     const newLog: WasteLog = { id: newId, ...newLogData };
@@ -230,7 +177,6 @@ export default function App() {
     const newMov: StockMovement = { id: newId, ...movData };
     setStockMovements([newMov, ...stockMovements]);
 
-    // Update stock quantity
     setStockItems((prev) =>
       prev.map((item) => {
         if (item.id === movData.stockItemId) {
@@ -258,7 +204,6 @@ export default function App() {
     fileName?: string;
     items: PurchaseItem[];
   }) => {
-    // 1. Create Invoice Record
     const newInvoiceId = `INV-2026-${(invoices.length + 1).toString().padStart(3, '0')}`;
     const newInvoice: InvoicePurchase = {
       id: newInvoiceId,
@@ -275,7 +220,6 @@ export default function App() {
     };
     setInvoices([newInvoice, ...invoices]);
 
-    // 2. Automatically register new supplier if not already present
     const existingSup = suppliers.find(
       (s) => s.name.toLowerCase() === purchaseData.supplierName.toLowerCase()
     );
@@ -298,7 +242,6 @@ export default function App() {
       ]);
     }
 
-    // 3. Automatically add new batch items into FEFO Stock
     const newStockEntries: StockItem[] = [];
     const newMovements: StockMovement[] = [];
 
@@ -386,47 +329,49 @@ export default function App() {
 
   const unreadAlertCount = alerts.filter((a) => !a.read).length;
 
-  // --- RENDERING: ECRÃ DE CARREGAMENTO DE LICENÇA ---
-  if (isCheckingLicence) {
+  // --- RENDERING CONDICIONAL DE AUTENTICAÇÃO E LICENÇA ---
+  if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center font-sans">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-400 font-medium">A verificar licença da subscrição...</p>
-        </div>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white font-sans">
+        A carregar sistema...
       </div>
     );
   }
 
-  // --- RENDERING: ECRÃ DE LICENÇA EXPIRADA OU SUSPENSA ---
-  if (user && licenceState && !licenceState.acessoPermitido) {
+  if (!session) {
+    return <Login />;
+  }
+
+  if (licencaValida === false) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 font-sans">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md text-center space-y-5 shadow-2xl">
-          <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 mx-auto flex items-center justify-center font-bold text-2xl">
-            ⚠️
-          </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-white mb-2">Acesso Restrito</h2>
-            <p className="text-xs text-slate-400 leading-relaxed">{licenceState.motivo}</p>
-          </div>
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 text-[11px] text-slate-400">
-            Para renovar a sua subscrição ou esclarecer dúvidas sobre a licença do <strong>SustentaFood</strong>, entre em contacto com o suporte comercial.
-          </div>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white p-4 font-sans">
+        <div className="max-w-md bg-slate-800 p-8 rounded-xl border border-red-500/50 text-center">
+          <h2 className="text-xl font-bold text-red-400 mb-2">Licença Inativa ou Expirada</h2>
+          <p className="text-slate-300 text-sm mb-6">
+            A licença de utilização desta organização encontra-se inativa ou expirada.
+          </p>
           <button
-            onClick={() => supabase.auth.signOut()}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-colors"
+            onClick={handleLogout}
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-colors"
           >
-            Terminar Sessão
+            Sair / Mudar de Conta
           </button>
         </div>
       </div>
     );
   }
 
-  // --- RENDERING: APLICAÇÃO PRINCIPAL (SE LICENÇA OK OU EM DESENVOLVIMENTO) ---
+  // --- APLICAÇÃO PRINCIPAL ---
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+      {/* Botão de Terminar Sessão / Info Org no Topo */}
+      <div className="bg-slate-950 px-6 py-2 flex justify-between items-center text-xs text-slate-400 border-b border-slate-800">
+        <span>Organização: <strong className="text-white">{organizacao?.nome}</strong></span>
+        <button onClick={handleLogout} className="hover:text-white underline transition-colors">
+          Terminar Sessão
+        </button>
+      </div>
+
       {/* App Navigation Header */}
       <Header
         activeTab={activeTab}
