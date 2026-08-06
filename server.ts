@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
+import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -10,17 +11,24 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Cliente Supabase Admin (Bypasses RLS no servidor com Service Role Key)
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseAdmin = (supabaseUrl && supabaseServiceKey) 
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
+
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   app.use(express.json({ limit: '10mb' }));
 
-  // Shared Gemini client instance
+  // Instância partilhada do cliente Gemini
   const getGeminiClient = () => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.warn('GEMINI_API_KEY not set. AI features will fallback gracefully.');
+      console.warn('GEMINI_API_KEY não configurada.');
       return null;
     }
     return new GoogleGenAI({
@@ -33,52 +41,63 @@ async function startServer() {
     });
   };
 
-  // Health check endpoint
+  // Endpoint de verificação de saúde
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // AI Forecast & Analysis Endpoint
+  // Endpoint de Análise Preditiva e Previsão IA
   app.post('/api/ai/forecast', async (req, res) => {
     try {
       const ai = getGeminiClient();
       if (!ai) {
         return res.status(503).json({
           error: 'Chave de API Gemini não configurada.',
-          fallbackNotice: 'Defina a variável GEMINI_API_KEY no painel Secrets.'
+          fallbackNotice: 'Configure a variável GEMINI_API_KEY no painel de ambiente.'
         });
       }
 
-      const { wasteLogs, stockItems, expectedDiners = 250, upcomingEmenta = 'Bacalhau com Natas e Sopa de Legumes' } = req.body;
+      let { wasteLogs, stockItems, expectedDiners = 250, upcomingEmenta = 'Ementa do Dia' } = req.body;
+
+      // Se o frontend não enviar dados de resíduos/stock, procura diretamente na base de dados (bypass RLS via Admin)
+      if ((!wasteLogs || wasteLogs.length === 0) && supabaseAdmin) {
+        const { data: dbWaste } = await supabaseAdmin.from('registos_desperdicio').select('*').limit(20);
+        wasteLogs = dbWaste || [];
+      }
+
+      if ((!stockItems || stockItems.length === 0) && supabaseAdmin) {
+        const { data: dbStock } = await supabaseAdmin.from('stock_items').select('*').limit(20);
+        stockItems = dbStock || [];
+      }
 
       const prompt = `
 És o especialista sénior em Prevenção de Desperdício Alimentar e Segurança Alimentar (HACCP) do sistema SustentaFood.
-Analisa os dados de resíduos e stocks fornecidos:
+Analisa rigorosamente os dados reais fornecidos abaixo:
 
-- N.º de refeições previstas para amanhã: ${expectedDiners}
+- Refeições previstas: ${expectedDiners}
 - Ementa planeada: "${upcomingEmenta}"
-- Registos de resíduos recentes: ${JSON.stringify((wasteLogs || []).slice(0, 8))}
-- Items de stock críticos (FEFO): ${JSON.stringify((stockItems || []).slice(0, 6))}
+- Registos recentes de resíduos: ${JSON.stringify((wasteLogs || []).slice(0, 10))}
+- Artigos em stock (FEFO/Validades): ${JSON.stringify((stockItems || []).slice(0, 10))}
 
-Gera um relatório de inteligência preditiva em Português com:
-1. Alertas de Risco Preditivo (ex: excedente de sopa, pescado próximo de vencer)
-2. Recomendações de Compra Inteligente
-3. Dicas de Otimização de Confeção e Redução de Perdas
-4. Uma frase destacada de previsão exata para o dashboard (Exemplo: "Para amanhã prevê-se um excedente de 25 kg de sopa devido à baixa procura das últimas 4 semanas.")
+Gera um relatório preditivo em Português de Portugal:
+1. Alertas de Risco Preditivo baseados nos alimentos em stock ou resíduos passados.
+2. Recomendações de Compra Inteligente.
+3. Dicas de Otimização de Confeção e Redução de Perdas.
+4. Uma frase destacada de previsão única e altamente específica baseada nos dados reais (NÃO uses exemplos genéricos).
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
-          systemInstruction: 'Responde exclusivamente em JSON estruturado com o esquema solicitado.',
+          systemInstruction: 'Responde exclusivamente no formato JSON estruturado com o esquema solicitado.',
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
             properties: {
               highlightPrediction: {
                 type: Type.STRING,
-                description: 'Previsão curta e direta para o banner do dashboard'
+                description: 'Frase curta e direta com previsão real baseada nos dados analisados'
               },
               wasteRiskScore: {
                 type: Type.NUMBER,
@@ -113,7 +132,7 @@ Gera um relatório de inteligência preditiva em Português com:
               },
               haccpTip: {
                 type: Type.STRING,
-                description: 'Dica crítica de segurança alimentar e conservação para a ementa do dia'
+                description: 'Dica de segurança alimentar e conservação para a ementa do dia'
               }
             },
             required: ['highlightPrediction', 'wasteRiskScore', 'forecastInsights', 'procurementAdvice', 'haccpTip']
@@ -130,26 +149,24 @@ Gera um relatório de inteligência preditiva em Português com:
     }
   });
 
-  // AI Chat & Assistant Endpoint
+  // Endpoint de Assistente de Chat IA
   app.post('/api/ai/chat', async (req, res) => {
     try {
       const ai = getGeminiClient();
       if (!ai) {
-        return res.status(503).json({
-          error: 'Chave de API Gemini não disponível.'
-        });
+        return res.status(503).json({ error: 'Chave de API Gemini não disponível.' });
       }
 
-      const { message, history = [] } = req.body;
+      const { message } = req.body;
 
       const chat = ai.chats.create({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         config: {
           systemInstruction: `
 És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, Nutrição Sustentável, Legislação HACCP e Economia Circular em Restauração.
 Responde sempre em Português de Portugal com tom profissional, prático e motivador.
 Dá conselhos concretos para:
-- Reaproveitamento seguro de excedentes alimentares (conforme normas de higiene);
+- Reaproveitamento seguro de excedentes alimentares;
 - Rotação FEFO e gestão de validades;
 - Redução de custos e emissões de CO2;
 - Sugestões de ementas de desperdício zero.
@@ -157,7 +174,6 @@ Dá conselhos concretos para:
         }
       });
 
-      // Send prompt
       const response = await chat.sendMessage({ message });
       res.json({ reply: response.text });
     } catch (err: any) {
@@ -166,42 +182,20 @@ Dá conselhos concretos para:
     }
   });
 
-  // AI OCR Invoice & Receipt Processing Endpoint
+  // Endpoint de OCR para Faturas
   app.post('/api/ai/parse-invoice', async (req, res) => {
     try {
       const ai = getGeminiClient();
-      const { image, fileName = 'fatura.jpg', mimeType = 'image/jpeg', textContent } = req.body;
+      const { image, mimeType = 'image/jpeg', textContent } = req.body;
 
       if (!image && !textContent) {
         return res.status(400).json({ error: 'Nenhum ficheiro ou imagem de fatura fornecido para processamento OCR.' });
       }
 
       if (!ai) {
-        // Fallback response if GEMINI_API_KEY is not configured
-        return res.json({
-          supplierName: 'Fornecedor Detetado',
-          nif: '501987654',
-          invoiceNumber: `FT ${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`,
-          date: new Date().toISOString().split('T')[0],
-          totalAmount: 185.50,
-          ocrExtracted: true,
-          items: [
-            {
-              productName: 'Produto Extraído via Fatura',
-              category: 'Legumes',
-              quantity: 25,
-              unit: 'kg',
-              pricePerUnit: 2.40,
-              totalCost: 60.00,
-              expiryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              batchNumber: `LOTE-${Math.floor(1000 + Math.random() * 9000)}`,
-              storageType: 'Refrigerado'
-            }
-          ]
-        });
+        return res.status(503).json({ error: 'Chave de API Gemini não configurada.' });
       }
 
-      // Format inline data
       let base64Clean = image ? image.replace(/^data:[^;]+;base64,/, '') : '';
       let effectiveMime = mimeType;
       if (image && image.startsWith('data:')) {
@@ -224,30 +218,14 @@ Dá conselhos concretos para:
 
       promptParts.push({
         text: `
-Analisas esta fatura / nota de encomenda / talão de compra de alimentos para o sistema de gestão de restaurante e stocks SustentaFood.
-Extrai todos os dados estruturados de OCR:
-1. Nome do Fornecedor (ex: Avícola do Dão, Lota de Peniche, Lactogal, Makro, Frutas do Oeste, etc.)
-2. NIF do Fornecedor
-3. Número da Fatura ou Documento
-4. Data de emissão (no formato YYYY-MM-DD)
-5. Valor total da fatura em Euros (€)
-6. Lista detalhada de produtos alimentares comprados, incluindo:
-   - Nome do produto
-   - Categoria adequada (Carne, Peixe, Frutas, Legumes, Lacticínios, Padaria, Refeições Confecionadas, Outros)
-   - Quantidade (número)
-   - Unidade ('kg', 'L', ou 'un')
-   - Preço por unidade (€)
-   - Preço total (€)
-   - Data de validade estimada (formato YYYY-MM-DD). Se a data não estiver explícita, calcula uma data plausível com base no tipo de alimento (ex: carne/peixe fresco ~3 a 5 dias, laticínios ~7 a 10 dias, legumes ~5 a 7 dias, secos ~180 dias a contar da data da fatura).
-   - Tipo de armazenamento recomendado ('Refrigerado', 'Congelado', 'Seco / Ambiente')
-   - Lote (se disponível ou gera um formato LOTE-YYYY-MMDD)
-
-${textContent ? `Texto extraído do documento PDF: "${textContent.slice(0, 3000)}"` : ''}
+Analisa esta fatura / nota de encomenda de alimentos para o sistema SustentaFood.
+Extrai os dados estruturados de OCR em formato JSON conforme o esquema definido.
+${textContent ? `Texto extraído do PDF: "${textContent.slice(0, 3000)}"` : ''}
 `
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: [
           {
             role: 'user',
@@ -260,28 +238,25 @@ ${textContent ? `Texto extraído do documento PDF: "${textContent.slice(0, 3000)
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              supplierName: { type: Type.STRING, description: 'Nome comercial do fornecedor' },
-              nif: { type: Type.STRING, description: 'Número de identificação fiscal' },
-              invoiceNumber: { type: Type.STRING, description: 'Número de fatura ou nota' },
-              date: { type: Type.STRING, description: 'Data da fatura YYYY-MM-DD' },
-              totalAmount: { type: Type.NUMBER, description: 'Valor total da fatura em EUR' },
+              supplierName: { type: Type.STRING },
+              nif: { type: Type.STRING },
+              invoiceNumber: { type: Type.STRING },
+              date: { type: Type.STRING },
+              totalAmount: { type: Type.NUMBER },
               items: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
                     productName: { type: Type.STRING },
-                    category: {
-                      type: Type.STRING,
-                      description: 'Carne | Peixe | Frutas | Legumes | Lacticínios | Padaria | Refeições Confecionadas | Outros'
-                    },
+                    category: { type: Type.STRING },
                     quantity: { type: Type.NUMBER },
-                    unit: { type: Type.STRING, description: 'kg | L | un' },
+                    unit: { type: Type.STRING },
                     pricePerUnit: { type: Type.NUMBER },
                     totalCost: { type: Type.NUMBER },
-                    expiryDate: { type: Type.STRING, description: 'YYYY-MM-DD' },
+                    expiryDate: { type: Type.STRING },
                     batchNumber: { type: Type.STRING },
-                    storageType: { type: Type.STRING, description: 'Refrigerado | Congelado | Seco / Ambiente' }
+                    storageType: { type: Type.STRING }
                   },
                   required: ['productName', 'category', 'quantity', 'unit', 'pricePerUnit', 'totalCost', 'expiryDate', 'storageType']
                 }
@@ -300,33 +275,11 @@ ${textContent ? `Texto extraído do documento PDF: "${textContent.slice(0, 3000)
       });
     } catch (err: any) {
       console.error('Erro no OCR de fatura:', err);
-      // Fallback object so user can manually edit without app crash
-      res.status(200).json({
-        supplierName: 'Fornecedor a Confirmar',
-        nif: '500000000',
-        invoiceNumber: `FT ${new Date().getFullYear()}/0001`,
-        date: new Date().toISOString().split('T')[0],
-        totalAmount: 0,
-        ocrExtracted: false,
-        warning: 'Não foi possível extrair dados automaticamente via OCR. Preencha os campos manualmente.',
-        items: [
-          {
-            productName: '',
-            category: 'Legumes',
-            quantity: 1,
-            unit: 'kg',
-            pricePerUnit: 0,
-            totalCost: 0,
-            expiryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            batchNumber: `LOTE-${Math.floor(1000 + Math.random() * 9000)}`,
-            storageType: 'Refrigerado'
-          }
-        ]
-      });
+      res.status(500).json({ error: 'Falha ao processar a fatura por OCR.', details: err.message });
     }
   });
 
-  // Vite integration in development, static files in production
+  // Integração Vite / Ficheiros estáticos
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -342,7 +295,7 @@ ${textContent ? `Texto extraído do documento PDF: "${textContent.slice(0, 3000)
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor SustentaFood a rodar na porta http://localhost:${PORT}`);
+    console.log(`Servidor SustentaFood a rodar na porta ${PORT}`);
   });
 }
 
