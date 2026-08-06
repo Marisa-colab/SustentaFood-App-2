@@ -541,9 +541,6 @@ export default function App() {
         onAddWasteLog={handleAddWasteLog}
       />
 
-      O trecho no final deve ficar estruturado da seguinte forma:
-
-TypeScript
       {/* Global Invoice Upload & OCR Modal */}
       <InvoiceUploadModal
         isOpen={isGlobalInvoiceModalOpen}
