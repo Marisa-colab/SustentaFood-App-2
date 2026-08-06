@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase } from './supabaseClient';
 import Login from './components/Login';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
