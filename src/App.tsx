@@ -104,7 +104,7 @@ export default function App() {
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('organizacao_id, organizacoes(status_licença, valida_ate, nome)')
+        .select('organizacao_id, organizacoes(status_licenca, valida_ate, nome)')
         .eq('id', userId)
         .single();
 
@@ -118,7 +118,7 @@ export default function App() {
       const dataValidade = new Date(org.valida_ate);
       const hoje = new Date();
 
-      if (org.status_licença === 'ativa' && dataValidade >= hoje) {
+      if (org.status_licenca === 'ativa' && dataValidade >= hoje) {
         setLicencaValida(true);
         setOrganizacao({ id: profile.organizacao_id, nome: org.nome });
       } else {
