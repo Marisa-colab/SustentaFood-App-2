@@ -100,7 +100,7 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
     }
     const genAI = new GoogleGenerativeAI(apiKey);
     return genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: { responseMimeType: 'application/json' }
     });
   };
