@@ -10,11 +10,11 @@ export async function verificarLicenca(userId: string): Promise<LicencaStatus> {
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('organization_id')
+      .select('organizacao_id') // Correção feita aqui
       .eq('id', userId)
       .single();
 
-    if (profileError || !profile?.organization_id) {
+    if (profileError || !profile?.organizacao_id) { // Correção feita aqui
       return { 
         acessoPermitido: false, 
         motivo: 'Perfil ou organização não associada.' 
@@ -24,7 +24,7 @@ export async function verificarLicenca(userId: string): Promise<LicencaStatus> {
     const { data: org, error: orgError } = await supabase
       .from('organizacoes')
       .select('nome_empresa, status_licenca, valida_ate')
-      .eq('id', profile.organization_id)
+      .eq('id', profile.organizacao_id) // Correção feita aqui
       .single();
 
     if (orgError || !org) {
@@ -61,4 +61,5 @@ export async function verificarLicenca(userId: string): Promise<LicencaStatus> {
       motivo: 'Erro interno ao validar estado da licença.' 
     };
   }
+}
 }
