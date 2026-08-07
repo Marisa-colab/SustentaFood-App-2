@@ -99,7 +99,7 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function validarLicencaEOrg(userId: string) {
+async function validarLicencaEOrg(userId: string) {
     setLoading(true);
     try {
       const { data: profile, error } = await supabase
@@ -117,7 +117,6 @@ export default function App() {
       }
 
       if (!profile || !profile.organizacoes) {
-        console.error("Perfil encontrado, mas o campo organizacoes veio vazio.", profile);
         setLicencaValida(false);
         setLoading(false);
         return;
@@ -126,16 +125,23 @@ export default function App() {
       // 2. Proteger contra a devolução em formato Array pelo Supabase
       const org = Array.isArray(profile.organizacoes) ? profile.organizacoes[0] : profile.organizacoes;
 
-      const dataValidade = new Date(org.valida_ate);
+      if (!org) {
+        setLicencaValida(false);
+        setLoading(false);
+        return;
+      }
+      
+      // 3. Fallbacks de segurança para não rebentar se o dado vier vazio
+      const dataValidade = new Date(org.valida_ate || '1970-01-01');
       const hoje = new Date();
 
-      // 3. Normalizar o texto para garantir que 'activa', 'ativa', 'ATIVA' ou espaços não bloqueiam
-      const statusAtual = String(org.status_licenca).trim().toLowerCase();
+      // 4. Normalizar o texto para garantir que 'activa', 'ativa', 'ATIVA' ou espaços não bloqueiam
+      const statusAtual = String(org.status_licenca || '').trim().toLowerCase();
       const isAtiva = statusAtual === 'ativa' || statusAtual === 'activa';
 
       if (isAtiva && dataValidade >= hoje) {
         setLicencaValida(true);
-        setOrganizacao({ id: profile.organizacao_id, nome: org.nome });
+        setOrganizacao({ id: profile.organizacao_id, nome: org.nome || 'Organização sem nome' });
       } else {
         console.warn("Bloqueio: A licença não passou nas regras. Status Lido:", org.status_licenca, "Validade:", org.valida_ate);
         setLicencaValida(false);
@@ -147,6 +153,11 @@ export default function App() {
       setLoading(false);
     }
   }
+
+  // 5. Função de logout reposta para evitar o "Ecrã Branco"
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
 
   // Metrics Calculation
   const todayStr = new Date().toISOString().split('T')[0];
