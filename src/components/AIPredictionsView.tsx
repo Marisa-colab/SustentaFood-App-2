@@ -6,10 +6,9 @@ import {
   Bot,
   Send,
   RefreshCw,
-  AlertTriangle,
-  Lightbulb,
-  CheckCircle2
+  Lightbulb
 } from 'lucide-react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { WasteLog, StockItem } from '../types';
 
 interface AIPredictionsViewProps {
@@ -63,7 +62,7 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
         category: 'Peixe',
         riskLevel: 'Elevado',
         predictedExcessKg: 18,
-        recommendation: 'Aproveitar lote de peixe em stock FEFO para o prato do dia de hoje (Bacalhau/Peixe do dia).'
+        recommendation: 'Aproveitar lote de peixe em stock FEFO para o prato do dia de hoje.'
       }
     ],
     procurementAdvice: [
@@ -87,41 +86,65 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'bot'; text: string }>>([
     {
       sender: 'bot',
-      text: 'Olá! Sou o seu Consultor Virtual SustentaFood powered by Gemini 3.6 Flash. Como posso ajudar com a ementa de hoje, controlo de validades ou redução de custos?'
+      text: 'Olá! Sou o seu Consultor Virtual SustentaFood powered by Gemini. Como posso ajudar com a ementa de hoje, controlo de validades ou redução de custos?'
     }
   ]);
   const [inputMsg, setInputMsg] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Trigger AI Forecast
+  // Inicializar o cliente Gemini com a variável do Vite
+  const getGeminiModel = () => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
+    }
+    const genAI = new GoogleGenerativeAI(apiKey);
+    return genAI.getGenerativeModel({ 
+      model: 'gemini-2.5-flash',
+      generationConfig: { responseMimeType: 'application/json' }
+    });
+  };
+
+  // Trigger AI Forecast diretamente no Frontend
   const handleGenerateForecast = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/ai/forecast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wasteLogs,
-          stockItems,
-          expectedDiners,
-          upcomingEmenta
-        })
-      });
+      const model = getGeminiModel();
+      const prompt = `
+És o especialista sénior em Prevenção de Desperdício Alimentar e Segurança Alimentar (HACCP) do sistema SustentaFood.
+Analisa os dados reais:
+- Refeições previstas: ${expectedDiners}
+- Ementa planeada: "${upcomingEmenta}"
+- Registos de resíduos: ${JSON.stringify((wasteLogs || []).slice(0, 10))}
+- Artigos em stock: ${JSON.stringify((stockItems || []).slice(0, 10))}
 
-      if (!res.ok) throw new Error('Erro na resposta do servidor IA');
-      const data = await res.json();
+Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
+{
+  "highlightPrediction": "string (frase curta e direta com previsão real)",
+  "wasteRiskScore": number (0 a 100),
+  "forecastInsights": [{"title": "string", "category": "string", "riskLevel": "string", "predictedExcessKg": number, "recommendation": "string"}],
+  "procurementAdvice": [{"item": "string", "action": "string", "suggestedQtyKg": number, "reasoning": "string"}],
+  "haccpTip": "string"
+}
+`;
+
+      const result = await model.generateContent(prompt);
+      const responseText = await result.response.text();
+      const data = JSON.parse(responseText);
+
       setAiData(data);
       if (data.highlightPrediction) {
         setHighlightPrediction(data.highlightPrediction);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Erro na previsão IA:", err);
+      alert("Erro ao gerar previsão com IA: " + (err.message || err));
     } finally {
       setLoading(false);
     }
   };
 
-  // Chat message send
+  // Chat message send diretamente no Frontend
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMsg.trim()) return;
@@ -132,20 +155,30 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
     setChatLoading(true);
 
     try {
-      const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userText })
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) throw new Error("Chave não configurada.");
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      // Para chat livre usamos texto normal
+      const chatModel = genAI.getGenerativeModel({ 
+        model: 'gemini-2.5-flash',
+        systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
       });
 
-      const data = await res.json();
-      if (data.reply) {
-        setChatMessages((prev) => [...prev, { sender: 'bot', text: data.reply }]);
-      } else {
-        setChatMessages((prev) => [...prev, { sender: 'bot', text: 'Sem resposta do servidor.' }]);
-      }
-    } catch (err) {
-      setChatMessages((prev) => [...prev, { sender: 'bot', text: 'Erro de ligação à IA.' }]);
+      const chat = chatModel.startChat({
+        history: chatMessages.map(m => ({
+          role: m.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: m.text }]
+        }))
+      });
+
+      const result = await chat.sendMessage(userText);
+      const replyText = await result.response.text();
+
+      setChatMessages((prev) => [...prev, { sender: 'bot', text: replyText }]);
+    } catch (err: any) {
+      console.error("Erro no chat IA:", err);
+      setChatMessages((prev) => [...prev, { sender: 'bot', text: 'Erro de ligação à IA: ' + err.message }]);
     } finally {
       setChatLoading(false);
     }
