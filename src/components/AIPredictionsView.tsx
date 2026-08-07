@@ -132,10 +132,11 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       const responseText = result.response.text();
       const parsedData = JSON.parse(responseText);
       
-     // setForecastData(parsedData);
+      // CORREÇÃO: Descomentado e ajustado para o nome de estado correto para atualizar a interface!
+      setAiData(parsedData);
       console.log("Previsão gerada com sucesso:", parsedData);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao gerar previsão com IA:", error);
       alert(`Ocorreu um erro: ${error.message}`);
     } finally {
@@ -158,17 +159,24 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       if (!apiKey) throw new Error("Chave não configurada.");
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Para chat livre usamos texto normal
+      
+      // CORREÇÃO 1: Alterado para 'gemini-1.5-flash' para eliminar o erro 404
       const chatModel = genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash',
+        model: 'gemini-1.5-flash',
         systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
       });
 
-      const chat = chatModel.startChat({
-        history: chatMessages.map(m => ({
+      // CORREÇÃO 2: Filtramos a mensagem inicial de boas-vindas do histórico. 
+      // Assim, a primeira mensagem enviada à API é sempre a do utilizador (eliminando o erro do Role).
+      const validHistory = chatMessages
+        .filter((_, index) => index !== 0) 
+        .map(m => ({
           role: m.sender === 'user' ? 'user' : 'model',
           parts: [{ text: m.text }]
-        }))
+        }));
+
+      const chat = chatModel.startChat({
+        history: validHistory
       });
 
       const result = await chat.sendMessage(userText);
