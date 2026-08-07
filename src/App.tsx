@@ -108,32 +108,45 @@ export default function App() {
         .eq('id', userId)
         .single();
 
-      if (error || !profile || !profile.organizacoes) {
+      // 1. Mostrar o erro exato na consola (F12) se a leitura falhar
+      if (error) {
+        console.error("Erro do Supabase ao ler perfil/organização:", error.message);
         setLicencaValida(false);
         setLoading(false);
         return;
       }
 
-      const org = profile.organizacoes;
+      if (!profile || !profile.organizacoes) {
+        console.error("Perfil encontrado, mas o campo organizacoes veio vazio.", profile);
+        setLicencaValida(false);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Proteger contra a devolução em formato Array pelo Supabase
+      const org = Array.isArray(profile.organizacoes) ? profile.organizacoes[0] : profile.organizacoes;
+
       const dataValidade = new Date(org.valida_ate);
       const hoje = new Date();
 
-      if (org.status_licenca === 'ativa' && dataValidade >= hoje) {
+      // 3. Normalizar o texto para garantir que 'activa', 'ativa', 'ATIVA' ou espaços não bloqueiam
+      const statusAtual = String(org.status_licenca).trim().toLowerCase();
+      const isAtiva = statusAtual === 'ativa' || statusAtual === 'activa';
+
+      if (isAtiva && dataValidade >= hoje) {
         setLicencaValida(true);
         setOrganizacao({ id: profile.organizacao_id, nome: org.nome });
       } else {
+        console.warn("Bloqueio: A licença não passou nas regras. Status Lido:", org.status_licenca, "Validade:", org.valida_ate);
         setLicencaValida(false);
       }
     } catch (err) {
+      console.error("Erro fatal e inesperado na validação da licença:", err);
       setLicencaValida(false);
     } finally {
       setLoading(false);
     }
   }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
 
   // Metrics Calculation
   const todayStr = new Date().toISOString().split('T')[0];
