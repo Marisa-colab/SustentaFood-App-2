@@ -100,7 +100,7 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
     }
     const genAI = new GoogleGenerativeAI(apiKey);
     return genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-latest',
       generationConfig: { responseMimeType: 'application/json' }
     });
   };
@@ -160,9 +160,9 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // CORREÇÃO 1: Alterado para 'gemini-1.5-flash' para eliminar o erro 404
+      // CORREÇÃO 1: Alterado para 'gemini-1.5-flash-latest' para eliminar o erro 404
       const chatModel = genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
+        model: 'gemini-1.5-flash-latest',
         systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
       });
 
