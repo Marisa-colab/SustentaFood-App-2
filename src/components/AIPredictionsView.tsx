@@ -129,16 +129,15 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 `;
 
       const result = await model.generateContent(prompt);
-      const responseText = await result.response.text();
-      const data = JSON.parse(responseText);
+      const responseText = result.response.text();
+      const parsedData = JSON.parse(responseText);
+      
+     // setForecastData(parsedData);
+      console.log("Previsão gerada com sucesso:", parsedData);
 
-      setAiData(data);
-      if (data.highlightPrediction) {
-        setHighlightPrediction(data.highlightPrediction);
-      }
-    } catch (err: any) {
-      console.error("Erro na previsão IA:", err);
-      alert("Erro ao gerar previsão com IA: " + (err.message || err));
+    } catch (error) {
+      console.error("Erro ao gerar previsão com IA:", error);
+      alert(`Ocorreu um erro: ${error.message}`);
     } finally {
       setLoading(false);
     }
