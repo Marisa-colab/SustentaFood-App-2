@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Lightbulb
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai'; // Corrigido: adicionada a palavra "import"
+import { GoogleGenAI } from '@google/genai';
 import { WasteLog, StockItem } from '../types';
 
 interface AIPredictionsViewProps {
@@ -92,15 +92,12 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   const [inputMsg, setInputMsg] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Modelo Gemini Gratuito e Atualizado
-  const GEMINI_MODEL = 'gemini-2.5-flash';
-
   // Trigger AI Forecast
   const handleGenerateForecast = async () => {
     setLoading(true);
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
+      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada no Vercel.");
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -123,7 +120,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 `;
 
       const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json'
@@ -138,6 +135,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       if (parsedData.highlightPrediction) {
         setHighlightPrediction(parsedData.highlightPrediction);
       }
+
     } catch (error: any) {
       console.error("Erro ao gerar previsão com IA:", error);
       alert(`Ocorreu um erro: ${error.message}`);
@@ -158,7 +156,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
+      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada.");
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -170,7 +168,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         }));
 
       const chat = ai.chats.create({
-        model: GEMINI_MODEL,
+        model: 'gemini-2.5-flash',
         config: {
           systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
         },
@@ -209,7 +207,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
           <button
             onClick={handleGenerateForecast}
             disabled={loading}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>{loading ? 'A analisar dados com IA...' : 'Atualizar Previsão Preditiva'}</span>
@@ -351,7 +349,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
           />
           <button
             type="submit"
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs flex items-center gap-1 shadow cursor-pointer"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs flex items-center gap-1 shadow"
           >
             <Send className="w-3.5 h-3.5" /> Enviar
           </button>
