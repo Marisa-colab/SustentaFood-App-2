@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Lightbulb
 } from 'lucide-react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { WasteLog, StockItem } from '../types';
 
 interface AIPredictionsViewProps {
@@ -92,18 +92,14 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   const [inputMsg, setInputMsg] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Trigger AI Forecast diretamente no Frontend
+  // Trigger AI Forecast com @google/genai e gemini-3.6-flash
   const handleGenerateForecast = async () => {
     setLoading(true);
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: { responseMimeType: 'application/json' }
-      });
+      const ai = new GoogleGenAI({ apiKey });
 
       const prompt = `
 És o especialista sénior em Prevenção de Desperdício Alimentar e Segurança Alimentar (HACCP) do sistema SustentaFood.
@@ -123,10 +119,18 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 }
 `;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      const parsedData = JSON.parse(responseText);
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json'
+        }
+      });
+
+      const responseText = response.text;
+      if (!responseText) throw new Error("Resposta vazia da IA.");
       
+      const parsedData = JSON.parse(responseText);
       setAiData(parsedData);
       console.log("Previsão gerada com sucesso:", parsedData);
 
@@ -138,7 +142,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
     }
   };
 
-  // Chat message send diretamente no Frontend
+  // Chat message send com @google/genai e gemini-3.6-flash
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMsg.trim()) return;
@@ -152,11 +156,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada.");
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const chatModel = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
-      });
+      const ai = new GoogleGenAI({ apiKey });
 
       const validHistory = chatMessages
         .filter((_, index) => index !== 0) 
@@ -165,12 +165,16 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
           parts: [{ text: m.text }]
         }));
 
-      const chat = chatModel.startChat({
+      const chat = ai.chats.create({
+        model: 'gemini-3.6-flash',
+        config: {
+          systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
+        },
         history: validHistory
       });
 
-      const result = await chat.sendMessage(userText);
-      const replyText = await result.response.text();
+      const result = await chat.sendMessage({ message: userText });
+      const replyText = result.text || 'Sem resposta disponível.';
 
       setChatMessages((prev) => [...prev, { sender: 'bot', text: replyText }]);
     } catch (err: any) {
