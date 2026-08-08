@@ -26,7 +26,7 @@ const getGeminiModel = (systemInstruction?: string) => {
   }
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-pro',
     ...(systemInstruction ? { systemInstruction } : { generationConfig: { responseMimeType: 'application/json' } })
   });
 };
@@ -154,7 +154,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
     setChatLoading(true);
 
     try {
-      const chatModel = getGeminiModel('És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.');
+      const chatModel = getGeminiModel('És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma concisa e prática.');
 
       const validHistory = chatMessages
         .filter((_, index) => index !== 0) 
