@@ -18,19 +18,6 @@ interface AIPredictionsViewProps {
   setHighlightPrediction: (p: string) => void;
 }
 
-// Helper function to initialize Gemini model safely outside the component
-const getGeminiModel = (systemInstruction?: string) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
-  }
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    ...(systemInstruction ? { systemInstruction } : { generationConfig: { responseMimeType: 'application/json' } })
-  });
-};
-
 export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   wasteLogs,
   stockItems,
@@ -109,7 +96,15 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   const handleGenerateForecast = async () => {
     setLoading(true);
     try {
-      const model = getGeminiModel();
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: { responseMimeType: 'application/json' }
+      });
+
       const prompt = `
 És o especialista sénior em Prevenção de Desperdício Alimentar e Segurança Alimentar (HACCP) do sistema SustentaFood.
 Analisa os dados reais:
@@ -154,7 +149,14 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
     setChatLoading(true);
 
     try {
-      const chatModel = getGeminiModel('És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma concisa e prática.');
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada.");
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const chatModel = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
+      });
 
       const validHistory = chatMessages
         .filter((_, index) => index !== 0) 
