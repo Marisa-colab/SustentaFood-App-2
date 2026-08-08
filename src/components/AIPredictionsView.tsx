@@ -26,7 +26,7 @@ const getGeminiModel = (systemInstruction?: string) => {
   }
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
-    model: 'gemini-pro',
+    model: 'gemini-2.0-flash',
     ...(systemInstruction ? { systemInstruction } : { generationConfig: { responseMimeType: 'application/json' } })
   });
 };
