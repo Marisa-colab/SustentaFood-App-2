@@ -18,6 +18,19 @@ interface AIPredictionsViewProps {
   setHighlightPrediction: (p: string) => void;
 }
 
+// Helper function to initialize Gemini model safely outside the component
+const getGeminiModel = (systemInstruction?: string) => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
+  }
+  const genAI = new GoogleGenerativeAI(apiKey);
+  return genAI.getGenerativeModel({
+    model: 'gemini-1.5-flash',
+    ...(systemInstruction ? { systemInstruction } : { generationConfig: { responseMimeType: 'application/json' } })
+  });
+};
+
 export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   wasteLogs,
   stockItems,
@@ -92,24 +105,11 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   const [inputMsg, setInputMsg] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Inicializar o cliente Gemini com a variável do Vite
-  const getGeminiModel = () => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
-    }
-    const genAI = new GoogleGenerativeAI(apiKey);
-    return genAI.getGenerativeModel({ 
-      model: 'gemini-2.0-flash',
-      generationConfig: { responseMimeType: 'application/json' }
-    });
-  };
-
   // Trigger AI Forecast diretamente no Frontend
   const handleGenerateForecast = async () => {
     setLoading(true);
     try {
-      const model = getModel();
+      const model = getGeminiModel();
       const prompt = `
 És o especialista sénior em Prevenção de Desperdício Alimentar e Segurança Alimentar (HACCP) do sistema SustentaFood.
 Analisa os dados reais:
@@ -132,7 +132,6 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       const responseText = result.response.text();
       const parsedData = JSON.parse(responseText);
       
-      // CORREÇÃO: Descomentado e ajustado para o nome de estado correto para atualizar a interface!
       setAiData(parsedData);
       console.log("Previsão gerada com sucesso:", parsedData);
 
@@ -155,19 +154,8 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
     setChatLoading(true);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave não configurada.");
+      const chatModel = getGeminiModel('És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.');
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      
-      // CORREÇÃO 1: Alterado para 'gemini-2.0-flash' para eliminar o erro 404
-      const chatModel = genAI.getGenerativeModel({ 
-        model: 'gemini-2.0-flash',
-        systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
-      });
-
-      // CORREÇÃO 2: Filtramos a mensagem inicial de boas-vindas do histórico. 
-      // Assim, a primeira mensagem enviada à API é sempre a do utilizador (eliminando o erro do Role).
       const validHistory = chatMessages
         .filter((_, index) => index !== 0) 
         .map(m => ({
