@@ -92,12 +92,12 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   const [inputMsg, setInputMsg] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Trigger AI Forecast com @google/genai e gemini-3.6-flash
+  // Trigger AI Forecast com @google/genai e gemini-2.5-flash
   const handleGenerateForecast = async () => {
     setLoading(true);
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
+      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada no ambiente.");
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -120,7 +120,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash', // Modelo gratuito e padrão
         contents: prompt,
         config: {
           responseMimeType: 'application/json'
@@ -130,10 +130,14 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       const responseText = response.text;
       if (!responseText) throw new Error("Resposta vazia da IA.");
       
-      const parsedData = JSON.parse(responseText);
+      // Limpeza de marcações markdown se existirem
+      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsedData = JSON.parse(cleanJson);
+      
       setAiData(parsedData);
-      console.log("Previsão gerada com sucesso:", parsedData);
-
+      if (parsedData.highlightPrediction) {
+        setHighlightPrediction(parsedData.highlightPrediction);
+      }
     } catch (error: any) {
       console.error("Erro ao gerar previsão com IA:", error);
       alert(`Ocorreu um erro: ${error.message}`);
@@ -142,7 +146,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
     }
   };
 
-  // Chat message send com @google/genai e gemini-3.6-flash
+  // Chat message send com @google/genai e gemini-2.5-flash
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMsg.trim()) return;
@@ -166,7 +170,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         }));
 
       const chat = ai.chats.create({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash', // Modelo gratuito e padrão
         config: {
           systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
         },
