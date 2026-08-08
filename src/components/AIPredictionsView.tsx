@@ -97,7 +97,7 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
     setLoading(true);
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada no ambiente.");
+      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada no Vercel.");
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -120,7 +120,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash', // Modelo gratuito e padrão
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json'
@@ -130,14 +130,13 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       const responseText = response.text;
       if (!responseText) throw new Error("Resposta vazia da IA.");
       
-      // Limpeza de marcações markdown se existirem
-      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsedData = JSON.parse(cleanJson);
-      
+      const parsedData = JSON.parse(responseText);
       setAiData(parsedData);
       if (parsedData.highlightPrediction) {
         setHighlightPrediction(parsedData.highlightPrediction);
       }
+      console.log("Previsão gerada com sucesso:", parsedData);
+
     } catch (error: any) {
       console.error("Erro ao gerar previsão com IA:", error);
       alert(`Ocorreu um erro: ${error.message}`);
@@ -170,7 +169,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         }));
 
       const chat = ai.chats.create({
-        model: 'gemini-2.5-flash', // Modelo gratuito e padrão
+        model: 'gemini-2.5-flash',
         config: {
           systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
         },
