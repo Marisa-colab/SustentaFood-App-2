@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Lightbulb
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI } from '@google/genai'; // Corrigido: adicionada a palavra "import"
 import { WasteLog, StockItem } from '../types';
 
 interface AIPredictionsViewProps {
@@ -92,12 +92,15 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   const [inputMsg, setInputMsg] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Trigger AI Forecast com @google/genai e gemini-2.5-flash
+  // Modelo Gemini Gratuito e Atualizado
+  const GEMINI_MODEL = 'gemini-2.5-flash';
+
+  // Trigger AI Forecast
   const handleGenerateForecast = async () => {
     setLoading(true);
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada no Vercel.");
+      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -120,7 +123,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: GEMINI_MODEL,
         contents: prompt,
         config: {
           responseMimeType: 'application/json'
@@ -135,8 +138,6 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       if (parsedData.highlightPrediction) {
         setHighlightPrediction(parsedData.highlightPrediction);
       }
-      console.log("Previsão gerada com sucesso:", parsedData);
-
     } catch (error: any) {
       console.error("Erro ao gerar previsão com IA:", error);
       alert(`Ocorreu um erro: ${error.message}`);
@@ -145,7 +146,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
     }
   };
 
-  // Chat message send com @google/genai e gemini-2.5-flash
+  // Chat message send
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMsg.trim()) return;
@@ -157,7 +158,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada.");
+      if (!apiKey) throw new Error("Chave VITE_GEMINI_API_KEY não configurada na Vercel.");
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -169,7 +170,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         }));
 
       const chat = ai.chats.create({
-        model: 'gemini-2.5-flash',
+        model: GEMINI_MODEL,
         config: {
           systemInstruction: 'És o Consultor Virtual SustentaFood, perito em Gestão de Desperdício Alimentar, HACCP e Economia Circular. Responde sempre em Português de Portugal de forma prática.'
         },
@@ -208,7 +209,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
           <button
             onClick={handleGenerateForecast}
             disabled={loading}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all disabled:opacity-50"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>{loading ? 'A analisar dados com IA...' : 'Atualizar Previsão Preditiva'}</span>
@@ -350,7 +351,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
           />
           <button
             type="submit"
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs flex items-center gap-1 shadow"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs flex items-center gap-1 shadow cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" /> Enviar
           </button>
