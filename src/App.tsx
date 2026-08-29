@@ -188,15 +188,26 @@ async function validarLicencaEOrg(userId: string) {
     }
 
     // 5. Carregar desperdícios reais do Supabase
-    const {
-      data: wasteData,
-      error: wasteError,
-    } = await supabase
-      .from('waste_logs')
-      .select('*')
-      
-    if (wasteError) {
-console.error('Erro ao carregar desperdícios:', {
+ const {
+  data: wasteData,
+  error: wasteError,
+} = await supabase
+  .from('waste_logs')
+  .select(`
+    id,
+    created_at,
+    nome_produto,
+    quantidade,
+    unidade_medida,
+    motivo,
+    custo_estimado,
+    registado_por,
+    organizacao_id
+  `)
+  .order('created_at', { ascending: false });
+
+if (wasteError) {
+  console.error('Erro ao carregar desperdícios:', {
     code: wasteError.code,
     message: wasteError.message,
     details: wasteError.details,
@@ -206,21 +217,33 @@ console.error('Erro ao carregar desperdícios:', {
   throw wasteError;
 }
 
-setWasteLogs(wasteData ?? []);
-  } catch (error) {
-    console.error(
-      'Erro ao validar a licença ou carregar dados:',
-      error
-    );
+const wasteLogsConvertidos: WasteLog[] = (wasteData ?? []).map(
+  (registo) => {
+    const criadoEm = new Date(registo.created_at);
 
-    // Em caso de erro, bloquear — nunca abrir automaticamente
-    setLicencaValida(false);
-    setOrganizacao(null);
-    setWasteLogs([]);
-  } finally {
-    setLoading(false);
+    return {
+      id: registo.id,
+      item: registo.nome_produto ?? '',
+      category: 'Outros',
+      type: registo.motivo ?? 'Outro',
+      quantity: Number(registo.quantidade ?? 0),
+      unit: registo.unidade_medida ?? 'kg',
+      costPerUnit: 0,
+      totalCost: Number(registo.custo_estimado ?? 0),
+      date: criadoEm.toLocaleDateString('en-CA'),
+      time: criadoEm.toLocaleTimeString('pt-PT', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      location: '',
+      responsible: '',
+      notes: '',
+      co2eKg: 0,
+    };
   }
-}
+);
+
+setWasteLogs(wasteLogsConvertidos);
 
   const handleLogout = async () => {
   const { error } = await supabase.auth.signOut();
