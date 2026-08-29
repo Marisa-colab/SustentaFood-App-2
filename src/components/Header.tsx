@@ -30,10 +30,10 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'waste_logs', label: 'Resíduos', icon: ClipboardList },
+    { id: 'waste_logs', label: 'Desperdício', icon: ClipboardList },
     { id: 'economic', label: 'Economia & KPIs', icon: TrendingDown },
     { id: 'stock_fefo', label: 'Stocks FEFO', icon: Boxes },
-    { id: 'suppliers', label: 'Fornecedores & Faturas', icon: Truck },
+    { id: 'suppliers', label: 'Fornecedores e Faturas', icon: Truck },
     { id: 'donations', label: 'Doações', icon: HeartHandshake },
     { id: 'valorization', label: 'Compostagem', icon: Recycle },
     { id: 'haccp', label: 'HACCP', icon: ShieldAlert },
