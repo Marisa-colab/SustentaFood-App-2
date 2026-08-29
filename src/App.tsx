@@ -193,7 +193,7 @@ async function validarLicencaEOrg(userId: string) {
   error: wasteError,
 } = await supabase
   .from('waste_logs')
-  .select(`
+  .select(
     id,
     created_at,
     nome_produto,
@@ -203,7 +203,7 @@ async function validarLicencaEOrg(userId: string) {
     custo_estimado,
     registado_por,
     organizacao_id
-  `)
+  )
   .order('created_at', { ascending: false });
 
 if (wasteError) {
@@ -225,9 +225,9 @@ const wasteLogsConvertidos: WasteLog[] = (wasteData ?? []).map(
       id: registo.id,
       item: registo.nome_produto ?? '',
       category: 'Outros',
-      type: registo.motivo ?? 'Outro',
+      type: (registo.motivo ?? 'Outro') as WasteLog['type'],
       quantity: Number(registo.quantidade ?? 0),
-      unit: registo.unidade_medida ?? 'kg',
+      unit: (registo.unidade_medida ?? 'kg') as WasteLog['unit'],
       costPerUnit: 0,
       totalCost: Number(registo.custo_estimado ?? 0),
       date: criadoEm.toLocaleDateString('en-CA'),
