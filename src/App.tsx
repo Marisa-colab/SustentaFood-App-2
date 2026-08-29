@@ -245,13 +245,24 @@ const wasteLogsConvertidos: WasteLog[] = (wasteData ?? []).map(
 
 setWasteLogs(wasteLogsConvertidos);
 
-  const handleLogout = async () => {
-  const { error } = await supabase.auth.signOut();
-
-  if (error) {
-    console.error('Erro ao terminar sessão:', error);
+  } catch (error) {
+    console.error('Erro em validarLicencaEOrg:', error);
+    setLicencaValida(false);
+    setOrganizacao(null);
+    setWasteLogs([]);
+  } finally {
+    setLoading(false);
   }
-};
+}
+  
+  // --- HANDLERS (definidos ao nível do componente) ---
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error('Erro ao terminar sessão:', error);
+    }
+  };
   
   const handleAddStockMovement = (movData: Omit<StockMovement, 'id'>) => {
     const newId = `MOV-${500 + stockMovements.length + 1}`;
@@ -475,6 +486,35 @@ const summaryMetrics: SummaryMetrics = {
   currentReductionPercent: 0,
 };
     
+  // Handlers que estavam em falta no ficheiro original
+  const handleDeleteWasteLog = (id: string) => {
+    setWasteLogs((prev) => prev.filter((w) => w.id !== id));
+  };
+
+  const handleAddWasteLog = (newLog: Omit<WasteLog, 'id'>) => {
+    const id = `WST-${Date.now()}`;
+    const createdDate = new Date();
+    const completeLog: WasteLog = {
+      id,
+      item: newLog.item || '',
+      category: newLog.category || 'Outros',
+      type: newLog.type || ('Outro' as WasteLog['type']),
+      quantity: Number(newLog.quantity ?? 0),
+      unit: newLog.unit || 'kg',
+      costPerUnit: Number(newLog.costPerUnit ?? 0),
+      totalCost: Number(newLog.totalCost ?? (Number(newLog.quantity ?? 0) * Number(newLog.costPerUnit ?? 0))),
+      date: newLog.date || createdDate.toLocaleDateString('en-CA'),
+      time: newLog.time || createdDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+      location: newLog.location || '',
+      responsible: newLog.responsible || '',
+      notes: newLog.notes || '',
+      co2eKg: Number(newLog.co2eKg ?? 0),
+    };
+
+    setWasteLogs((prev) => [completeLog, ...prev]);
+    setIsNewWasteModalOpen(false);
+  };
+
   // --- RENDERING CONDICIONAL DE AUTENTICAÇÃO E LICENÇA ---
   if (loading) {
     return (
