@@ -76,33 +76,43 @@ export default function App() {
   const [isGlobalInvoiceModalOpen, setIsGlobalInvoiceModalOpen] = useState(false);
   const [prefillDonationItem, setPrefillDonationItem] = useState<{ name: string; category: WasteCategory; quantity: number } | null>(null);
 
-  useEffect(() => {
-    // 1. Obter sessão atual do Supabase
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) validarLicencaEOrg(session.user.id);
-      else setLoading(false);
-    });
+ useEffect(() => {
+  // 1. Obter a sessão atual do Supabase
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
 
-    // 2. Escutar alterações de autenticação
-const {
-  data: { subscription },
-} = supabase.auth.onAuthStateChange((_event, session) => {
-  setSession(session);
+    if (session) {
+      validarLicencaEOrg(session.user.id);
+    } else {
+      setLicencaValida(null);
+      setOrganizacao(null);
+      setWasteLogs([]);
+      setLoading(false);
+    }
+  });
 
-  if (session) {
-    validarLicencaEOrg(session.user.id);
-  } else {
-    setLicencaValida(null);
-    setOrganizacao(null);
-    setWasteLogs([]);
-    setLoading(false);
-  }
-});
+  // 2. Escutar alterações de autenticação
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
 
-return () => subscription.unsubscribe();
+    if (session) {
+      validarLicencaEOrg(session.user.id);
+    } else {
+      setLicencaValida(null);
+      setOrganizacao(null);
+      setWasteLogs([]);
+      setLoading(false);
+    }
+  });
+
+  // 3. Cancelar a subscrição quando o componente for fechado
+  return () => {
+    subscription.unsubscribe();
+  };
 }, []);
-
+  
 async function validarLicencaEOrg(userId: string) {
   setLoading(true);
 
