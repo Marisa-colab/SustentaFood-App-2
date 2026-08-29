@@ -410,6 +410,71 @@ setWasteLogs(wasteLogsConvertidos);
 
   const unreadAlertCount = alerts.filter((a) => !a.read).length;
 
+    // Cálculo dos indicadores
+const hoje = new Date().toLocaleDateString('en-CA');
+const mesAtual = hoje.slice(0, 7);
+
+const registosDeHoje = wasteLogs.filter(
+  (registo) => registo.date === hoje
+);
+
+const registosDoMes = wasteLogs.filter(
+  (registo) => registo.date?.startsWith(mesAtual)
+);
+
+const totalWasteKgToday = registosDeHoje.reduce(
+  (total, registo) =>
+    total + Number(registo.quantity ?? 0),
+  0
+);
+
+const totalWasteKgMonth = registosDoMes.reduce(
+  (total, registo) =>
+    total + Number(registo.quantity ?? 0),
+  0
+);
+
+const totalCostLostMonth = registosDoMes.reduce(
+  (total, registo) =>
+    total + Number(registo.totalCost ?? 0),
+  0
+);
+
+const totalCo2eKgMonth = registosDoMes.reduce(
+  (total, registo) =>
+    total + Number(registo.co2eKg ?? 0),
+  0
+);
+
+// Enquanto não existir uma tabela/campo para refeições servidas,
+// o valor começa em zero.
+const mealsServedMonth = 0;
+
+const kgPerMeal =
+  mealsServedMonth > 0
+    ? totalWasteKgMonth / mealsServedMonth
+    : 0;
+
+const diasDoMesDecorridos = new Date().getDate();
+
+const kgPerDayAvg =
+  diasDoMesDecorridos > 0
+    ? totalWasteKgMonth / diasDoMesDecorridos
+    : 0;
+
+const summaryMetrics: SummaryMetrics = {
+  totalWasteKgToday,
+  totalWasteKgMonth,
+  totalCostLostMonth,
+  totalCo2eKgMonth,
+  potentialSavingsMonth: totalCostLostMonth * 0.5,
+  mealsServedMonth,
+  kgPerMeal,
+  kgPerDayAvg,
+  reductionGoalPercent: 25,
+  currentReductionPercent: 0,
+};
+    
   // --- RENDERING CONDICIONAL DE AUTENTICAÇÃO E LICENÇA ---
   if (loading) {
     return (
