@@ -69,9 +69,7 @@ export default function App() {
   const [cleaningLogs, setCleaningLogs] = useState<CleaningLog[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
-  const [highlightPrediction, setHighlightPrediction] = useState<string>(
-    'Para amanhã prevê-se um excedente de 25 kg de sopa devido à baixa procura das últimas 4 semanas.'
-  );
+  const [highlightPrediction, setHighlightPrediction] = useState<string>('');
 
   // Modals & Prefills
   const [isNewWasteModalOpen, setIsNewWasteModalOpen] = useState(false);
