@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   TrendingDown,
-  EuroSign,
+  DollarSign,
   Cloud,
   Target,
   Sparkles,
@@ -204,7 +204,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               Análise Económica: O Impacto Real no Seu Orçamento
             </h2>
             <p className="text-slate-300 text-sm leading-relaxed">
-              Atualmente foram perdidos <strong className="text-rose-400">{currentMonthlyLoss.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</strong> este mês em resíduos alimentares.
+              Atualmente foram perdidos <strong className="text-rose-400">{currentMonthlyLoss.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</strong> este mês em resíduos alimentare[...]
               Ajuste a meta de otimização para calcular a poupança anual projetada.
             </p>
 
