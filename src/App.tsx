@@ -194,13 +194,19 @@ async function validarLicencaEOrg(userId: string) {
     } = await supabase
       .from('waste_logs')
       .select('*')
-      .order('date', { ascending: false });
-
+      
     if (wasteError) {
-      throw wasteError;
-    }
+console.error('Erro ao carregar desperdícios:', {
+    code: wasteError.code,
+    message: wasteError.message,
+    details: wasteError.details,
+    hint: wasteError.hint,
+  });
 
-    setWasteLogs(wasteData ?? []);
+  throw wasteError;
+}
+
+setWasteLogs(wasteData ?? []);
   } catch (error) {
     console.error(
       'Erro ao validar a licença ou carregar dados:',
