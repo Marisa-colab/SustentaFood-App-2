@@ -1,17 +1,16 @@
 import {
-  WasteLog,
-  StockItem,
-  StockMovement,
-  DonationLog,
-  ValorizationLog,
-  HaccpLog,
-  TemperatureLog,
-  CleaningLog,
-  AlertItem,
-  AIInsight,
-  Supplier,
-  InvoicePurchase
-} from './types';
+  initialWasteLogs,
+  initialStockItems,
+  initialStockMovements,
+  initialDonations,
+  initialValorizationLogs,
+  initialHaccpLogs,
+  initialTemperatureLogs,
+  initialCleaningLogs,
+  initialAlerts,
+  initialSuppliers,
+  initialInvoices
+} from './mockData';
 
 // Category CO2e emission factors (kg CO2e per kg food waste)
 export const CO2_FACTORS: Record<string, number> = {
