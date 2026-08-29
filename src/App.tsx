@@ -193,7 +193,7 @@ async function validarLicencaEOrg(userId: string) {
   error: wasteError,
 } = await supabase
   .from('waste_logs')
-  .select(
+  .select('
     id,
     created_at,
     nome_produto,
@@ -203,7 +203,7 @@ async function validarLicencaEOrg(userId: string) {
     custo_estimado,
     registado_por,
     organizacao_id
-  )
+  ')
   .order('created_at', { ascending: false });
 
 if (wasteError) {
