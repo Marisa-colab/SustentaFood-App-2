@@ -123,7 +123,7 @@ async function validarLicencaEOrg(userId: string) {
         console.log("Dados da licença lidos da BD:", org); // Para vermos depois o que estava a falhar
       }
 
-      // PASSO MÁGICO: Forçamos a licença a ser sempre VÁLIDA para ti
+      // PASSO MÁGICO: Licença sempre VÁLIDA para ti
       setLicencaValida(true);
       setOrganizacao({ id: orgId, nome: nomeOrg });
 
