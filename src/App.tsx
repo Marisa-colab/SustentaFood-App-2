@@ -216,6 +216,14 @@ async function validarLicencaEOrg(userId: string) {
   }
 }
 
+  const handleLogout = async () => {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    console.error('Erro ao terminar sessão:', error);
+  }
+};
+  
   const handleAddStockMovement = (movData: Omit<StockMovement, 'id'>) => {
     const newId = `MOV-${500 + stockMovements.length + 1}`;
     const newMov: StockMovement = { id: newId, ...movData };
