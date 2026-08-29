@@ -57,17 +57,17 @@ export default function App() {
   const [organizacao, setOrganizacao] = useState<any>(null);
 
   // --- CORE APPLICATION DATA STATE ---
-  const [wasteLogs, setWasteLogs] = useState<WasteLog[]>(initialWasteLogs);
-  const [stockItems, setStockItems] = useState<StockItem[]>(initialStockItems);
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
-  const [invoices, setInvoices] = useState<InvoicePurchase[]>(initialInvoices);
-  const [donations, setDonations] = useState<DonationLog[]>(initialDonations);
-  const [valorizationLogs, setValorizationLogs] = useState<ValorizationLog[]>(initialValorizationLogs);
-  const [haccpLogs, setHaccpLogs] = useState<HaccpLog[]>(initialHaccpLogs);
-  const [temperatureLogs, setTemperatureLogs] = useState(initialTemperatureLogs);
-  const [cleaningLogs, setCleaningLogs] = useState(initialCleaningLogs);
-  const [alerts, setAlerts] = useState<AlertItem[]>(initialAlerts);
+  const [wasteLogs, setWasteLogs] = useState<WasteLog[]>([]);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [invoices, setInvoices] = useState<InvoicePurchase[]>([]);
+  const [donations, setDonations] = useState<DonationLog[]>([]);
+  const [valorizationLogs, setValorizationLogs] = useState<ValorizationLog[]>([]);
+  const [haccpLogs, setHaccpLogs] = useState<HaccpLog[]>([]);
+  const [temperatureLogs, setTemperatureLogs] = useState<TemperatureLog[]>([]);
+  const [cleaningLogs, setCleaningLogs] = useState<CleaningLog[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
   const [highlightPrediction, setHighlightPrediction] = useState<string>(
     'Para amanhã prevê-se um excedente de 25 kg de sopa devido à baixa procura das últimas 4 semanas.'
@@ -87,97 +87,136 @@ export default function App() {
     });
 
     // 2. Escutar alterações de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) validarLicencaEOrg(session.user.id);
-      else {
-        setLicencaValida(null);
-        setLoading(false);
-      }
-    });
+const {
+  data: { subscription },
+} = supabase.auth.onAuthStateChange((_event, session) => {
+  setSession(session);
 
-    return () => subscription.unsubscribe();
-  }, []);
+  if (session) {
+    validarLicencaEOrg(session.user.id);
+  } else {
+    setLicencaValida(null);
+    setOrganizacao(null);
+    setWasteLogs([]);
+    setLoading(false);
+  }
+});
+
+return () => subscription.unsubscribe();
+}, []);
 
 async function validarLicencaEOrg(userId: string) {
-    setLoading(true);
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('organizacao_id, organizacoes(status_licenca, valida_ate, nome)')
-        .eq('id', userId)
-        .single();
+  setLoading(true);
 
-      // Mostra o que se passa nos bastidores na consola, mas NÃO te bloqueia
-      if (error) console.error("Aviso Supabase:", error.message);
-      if (!profile) console.warn("Aviso: Perfil não encontrado na base de dados.");
+  try {
+    // 1. Carregar o perfil e a organização
+    const {
+      data: profile,
+      error: profileError,
+    } = await supabase
+      .from('profiles')
+      .select(`
+        organizacao_id,
+        organizacoes (
+          id,
+          nome,
+          status_licenca,
+          inicio_licenca,
+          valida_ate
+        )
+      `)
+      .eq('id', userId)
+      .single();
 
-      let nomeOrg = "SustentaFood (Modo Admin)";
-      let orgId = profile?.organizacao_id || userId;
-
-      if (profile && profile.organizacoes) {
-        const org = Array.isArray(profile.organizacoes) ? profile.organizacoes[0] : profile.organizacoes;
-        if (org && org.nome) {
-          nomeOrg = org.nome;
-        }
-        console.log("Dados da licença lidos da BD:", org); // Para vermos depois o que estava a falhar
-      }
-
-      // PASSO MÁGICO: Licença sempre VÁLIDA para ti
-      setLicencaValida(true);
-      setOrganizacao({ id: orgId, nome: nomeOrg });
-
-    } catch (err) {
-      console.error("Erro ignorado:", err);
-      // Mesmo que tudo falhe, a porta abre-se
-      setLicencaValida(true); 
-      setOrganizacao({ id: userId, nome: "Modo de Recuperação" });
-    } finally {
-      setLoading(false);
+    if (profileError) {
+      throw profileError;
     }
+
+    // 2. Verificar se é a superadministradora
+    const {
+      data: isSuperAdmin,
+      error: adminError,
+    } = await supabase.rpc('is_super_admin');
+
+    if (adminError) {
+      throw adminError;
+    }
+
+    const org: any = Array.isArray(profile?.organizacoes)
+      ? profile.organizacoes[0]
+      : profile?.organizacoes;
+
+    // 3. Validar as datas da licença
+    const agora = Date.now();
+
+    const inicio = org?.inicio_licenca
+      ? new Date(org.inicio_licenca).getTime()
+      : NaN;
+
+    const fim = org?.valida_ate
+      ? new Date(org.valida_ate).getTime()
+      : NaN;
+
+    const licencaAtiva =
+      org?.status_licenca === 'activa' &&
+      Number.isFinite(inicio) &&
+      Number.isFinite(fim) &&
+      agora >= inicio &&
+      agora < fim;
+
+    const acessoPermitido =
+      Boolean(isSuperAdmin) || licencaAtiva;
+
+    setLicencaValida(acessoPermitido);
+
+    setOrganizacao(
+      org
+        ? {
+            id: org.id,
+            nome: org.nome ?? 'Organização sem nome',
+          }
+        : isSuperAdmin
+          ? {
+              id: null,
+              nome: 'Administração SustentaFood',
+            }
+          : null
+    );
+
+    // 4. Não carregar dados se a licença estiver bloqueada
+    if (!acessoPermitido) {
+      setWasteLogs([]);
+      return;
+    }
+
+    // 5. Carregar desperdícios reais do Supabase
+    const {
+      data: wasteData,
+      error: wasteError,
+    } = await supabase
+      .from('waste_logs')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (wasteError) {
+      throw wasteError;
+    }
+
+    setWasteLogs(wasteData ?? []);
+  } catch (error) {
+    console.error(
+      'Erro ao validar a licença ou carregar dados:',
+      error
+    );
+
+    // Em caso de erro, bloquear — nunca abrir automaticamente
+    setLicencaValida(false);
+    setOrganizacao(null);
+    setWasteLogs([]);
+  } finally {
+    setLoading(false);
   }
-
-  // Mantemos o botão de logout a funcionar
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-  
-  // Metrics Calculation
-  const todayStr = new Date().toISOString().split('T')[0];
-  const totalWasteKgToday = wasteLogs
-    .filter((l) => l.date === todayStr || l.date === '2026-08-01')
-    .reduce((acc, curr) => acc + curr.quantity, 0);
-
-  const totalWasteKgMonth = wasteLogs.reduce((acc, curr) => acc + curr.quantity, 0);
-  const totalCostLostMonth = wasteLogs.reduce((acc, curr) => acc + curr.totalCost, 0);
-  const totalCo2eKgMonth = wasteLogs.reduce((acc, curr) => acc + curr.co2eKg, 0);
-  const mealsServedMonth = 4720;
-  const kgPerMeal = totalWasteKgMonth / mealsServedMonth;
-  const kgPerDayAvg = totalWasteKgMonth / 30;
-
-  const summaryMetrics: SummaryMetrics = {
-    totalWasteKgToday,
-    totalWasteKgMonth,
-    totalCostLostMonth,
-    totalCo2eKgMonth,
-    potentialSavingsMonth: totalCostLostMonth * 0.5,
-    mealsServedMonth,
-    kgPerMeal,
-    kgPerDayAvg,
-    reductionGoalPercent: 25,
-    currentReductionPercent: 18.5
-  };
-
-  // Handlers
-  const handleAddWasteLog = (newLogData: Omit<WasteLog, 'id'>) => {
-    const newId = `LOG-${1000 + wasteLogs.length + 1}`;
-    const newLog: WasteLog = { id: newId, ...newLogData };
-    setWasteLogs([newLog, ...wasteLogs]);
-  };
-
-  const handleDeleteWasteLog = (id: string) => {
-    setWasteLogs(wasteLogs.filter((l) => l.id !== id));
-  };
+}
 
   const handleAddStockMovement = (movData: Omit<StockMovement, 'id'>) => {
     const newId = `MOV-${500 + stockMovements.length + 1}`;
