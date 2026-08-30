@@ -87,6 +87,9 @@ export default function App() {
       setLicencaValida(null);
       setOrganizacao(null);
       setWasteLogs([]);
+      setTemperatureLogs([]);
+      setCleaningLogs([]);
+      setHaccpLogs([]);
       setLoading(false);
     }
   });
@@ -103,6 +106,9 @@ export default function App() {
       setLicencaValida(null);
       setOrganizacao(null);
       setWasteLogs([]);
+      setTemperatureLogs([]);
+      setCleaningLogs([]);
+      setHaccpLogs([]);
       setLoading(false);
     }
   });
@@ -194,6 +200,9 @@ async function validarLicencaEOrg(userId: string) {
     // 4. Não carregar dados se a licença estiver bloqueada
     if (!acessoPermitido) {
       setWasteLogs([]);
+      setTemperatureLogs([]);
+      setCleaningLogs([]);
+      setHaccpLogs([]);
       return;
     }
 
@@ -203,7 +212,7 @@ async function validarLicencaEOrg(userId: string) {
   error: wasteError,
 } = await supabase
   .from('waste_logs')
-  .select('id, created_at, nome_produto, quantidade, unidade_medida, motivo, custo_estimado, registado_por, organizacao_id')
+  .select('id, created_at, nome_produto, quantidade, unidade_medida, motivo, custo_estimado, registado_por, organizacao_id, categoria, local_producao, responsavel, observacoes, custo_unitario, co2e_kg')
   .order('created_at', { ascending: false });
 
 if (wasteError) {
@@ -224,32 +233,108 @@ const wasteLogsConvertidos: WasteLog[] = (wasteData ?? []).map(
     return {
       id: registo.id,
       item: registo.nome_produto ?? '',
-      category: 'Outros',
+      category: (registo.categoria ?? 'Outros') as WasteLog['category'],
       type: (registo.motivo ?? 'Outro') as WasteLog['type'],
       quantity: Number(registo.quantidade ?? 0),
       unit: (registo.unidade_medida ?? 'kg') as WasteLog['unit'],
-      costPerUnit: 0,
+      costPerUnit: Number(registo.custo_unitario ?? 0),
       totalCost: Number(registo.custo_estimado ?? 0),
       date: criadoEm.toLocaleDateString('en-CA'),
       time: criadoEm.toLocaleTimeString('pt-PT', {
         hour: '2-digit',
         minute: '2-digit',
       }),
-      location: '',
-      responsible: '',
-      notes: '',
-      co2eKg: 0,
+      location: (registo.local_producao ?? '') as WasteLog['location'],
+      responsible: registo.responsavel ?? '',
+      notes: registo.observacoes ?? '',
+      co2eKg: Number(registo.co2e_kg ?? 0),
     };
   }
 );
 
 setWasteLogs(wasteLogsConvertidos);
 
+    // 6. Carregar registos HACCP reais do Supabase (temperaturas, higienização, não conformidades)
+    const [
+      { data: tempData, error: tempError },
+      { data: cleanData, error: cleanError },
+      { data: haccpData, error: haccpError },
+    ] = await Promise.all([
+      supabase
+        .from('temperature_logs')
+        .select('id, equipamento, localizacao, intervalo_alvo, temperatura_medida, data, hora, turno, estado, acao_corretiva, responsavel')
+        .order('data', { ascending: false }),
+      supabase
+        .from('cleaning_logs')
+        .select('id, area_equipamento, frequencia, detergente, data, estado, responsavel')
+        .order('data', { ascending: false }),
+      supabase
+        .from('haccp_logs')
+        .select('id, data, hora, produto, lote, fornecedor, quantidade_kg, motivo_rejeicao, temperatura_registada, codigo_nc, acao_corretiva, estado, responsavel')
+        .order('data', { ascending: false }),
+    ]);
+
+    if (tempError) console.error('Erro ao carregar temperaturas:', tempError);
+    if (cleanError) console.error('Erro ao carregar higienizações:', cleanError);
+    if (haccpError) console.error('Erro ao carregar não conformidades HACCP:', haccpError);
+
+    setTemperatureLogs(
+      (tempData ?? []).map((registo) => ({
+        id: registo.id,
+        equipmentName: registo.equipamento ?? '',
+        location: registo.localizacao ?? '',
+        targetTempRange: registo.intervalo_alvo ?? '',
+        measuredTemp: Number(registo.temperatura_medida ?? 0),
+        date: registo.data ?? '',
+        time: (registo.hora ?? '').toString().slice(0, 5),
+        shift: (registo.turno ?? 'Manhã') as TemperatureLog['shift'],
+        status: (registo.estado ?? 'Conforme') as TemperatureLog['status'],
+        correctiveAction: registo.acao_corretiva ?? undefined,
+        responsible: registo.responsavel ?? '',
+      }))
+    );
+
+    setCleaningLogs(
+      (cleanData ?? []).map((registo) => ({
+        id: registo.id,
+        areaOrEquipment: registo.area_equipamento ?? '',
+        frequency: (registo.frequencia ?? 'Diária') as CleaningLog['frequency'],
+        detergentUsed: registo.detergente ?? '',
+        date: registo.data ?? '',
+        status: (registo.estado ?? 'Inspecionado') as CleaningLog['status'],
+        responsible: registo.responsavel ?? '',
+      }))
+    );
+
+    setHaccpLogs(
+      (haccpData ?? []).map((registo) => ({
+        id: registo.id,
+        date: registo.data ?? '',
+        time: (registo.hora ?? '').toString().slice(0, 5),
+        productName: registo.produto ?? '',
+        batchNumber: registo.lote ?? '',
+        supplier: registo.fornecedor ?? '',
+        quantityKg: Number(registo.quantidade_kg ?? 0),
+        rejectionReason: (registo.motivo_rejeicao ?? 'Outro') as HaccpLog['rejectionReason'],
+        temperatureLogged:
+          registo.temperatura_registada !== null && registo.temperatura_registada !== undefined
+            ? Number(registo.temperatura_registada)
+            : undefined,
+        nonConformityCode: registo.codigo_nc ?? '',
+        correctiveAction: registo.acao_corretiva ?? '',
+        status: (registo.estado ?? 'Aberto') as HaccpLog['status'],
+        responsible: registo.responsavel ?? '',
+      }))
+    );
+
   } catch (error) {
     console.error('Erro em validarLicencaEOrg:', error);
     setLicencaValida(false);
     setOrganizacao(null);
     setWasteLogs([]);
+    setTemperatureLogs([]);
+    setCleaningLogs([]);
+    setHaccpLogs([]);
   } finally {
     setLoading(false);
   }
@@ -393,21 +478,91 @@ setWasteLogs(wasteLogsConvertidos);
     setValorizationLogs([newVal, ...valorizationLogs]);
   };
 
-  const handleAddHaccpLog = (haccpData: Omit<HaccpLog, 'id'>) => {
-    const newId = `HACCP-2026-${Math.floor(100 + Math.random() * 900)}`;
-    const newHaccp: HaccpLog = { id: newId, ...haccpData };
+  const handleAddHaccpLog = async (haccpData: Omit<HaccpLog, 'id'>) => {
+    const { data, error } = await supabase
+      .from('haccp_logs')
+      .insert({
+        data: haccpData.date,
+        hora: haccpData.time,
+        produto: haccpData.productName,
+        lote: haccpData.batchNumber,
+        fornecedor: haccpData.supplier,
+        quantidade_kg: haccpData.quantityKg,
+        motivo_rejeicao: haccpData.rejectionReason,
+        temperatura_registada: haccpData.temperatureLogged ?? null,
+        codigo_nc: haccpData.nonConformityCode,
+        acao_corretiva: haccpData.correctiveAction,
+        estado: haccpData.status,
+        responsavel: haccpData.responsible,
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao gravar não conformidade HACCP:', error);
+      alert('Não foi possível gravar o registo HACCP. Tenta novamente.');
+      return;
+    }
+
+    const newHaccp: HaccpLog = { id: data.id, ...haccpData };
     setHaccpLogs([newHaccp, ...haccpLogs]);
   };
 
-  const handleAddTemperatureLog = (tempData: Omit<TemperatureLog, 'id'>) => {
-    const newId = `TEMP-${Math.floor(100 + Math.random() * 900)}`;
-    const newTemp: TemperatureLog = { id: newId, ...tempData };
+  const handleAddTemperatureLog = async (tempData: Omit<TemperatureLog, 'id'>) => {
+    const { data, error } = await supabase
+      .from('temperature_logs')
+      .insert({
+        equipamento: tempData.equipmentName,
+        localizacao: tempData.location,
+        intervalo_alvo: tempData.targetTempRange,
+        temperatura_medida: tempData.measuredTemp,
+        data: tempData.date,
+        hora: tempData.time,
+        turno: tempData.shift,
+        estado: tempData.status,
+        acao_corretiva: tempData.correctiveAction ?? null,
+        responsavel: tempData.responsible,
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao gravar medição de temperatura:', error);
+      alert('Não foi possível gravar a medição. Tenta novamente.');
+      return;
+    }
+
+    const newTemp: TemperatureLog = { id: data.id, ...tempData };
     setTemperatureLogs([newTemp, ...temperatureLogs]);
   };
 
-  const handleAddCleaningLog = (cleanData: Omit<CleaningLog, 'id'>) => {
-    const newId = `CLN-${Math.floor(100 + Math.random() * 900)}`;
-    const newClean: CleaningLog = { id: newId, ...cleanData };
+  const handleAddCleaningLog = async (cleanData: Omit<CleaningLog, 'id'>) => {
+    const { data, error } = await supabase
+      .from('cleaning_logs')
+      .insert({
+        area_equipamento: cleanData.areaOrEquipment,
+        frequencia: cleanData.frequency,
+        detergente: cleanData.detergentUsed,
+        data: cleanData.date,
+        estado: cleanData.status,
+        responsavel: cleanData.responsible,
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao gravar higienização:', error);
+      alert('Não foi possível gravar o registo de higienização. Tenta novamente.');
+      return;
+    }
+
+    const newClean: CleaningLog = { id: data.id, ...cleanData };
     setCleaningLogs([newClean, ...cleaningLogs]);
   };
 
@@ -515,6 +670,12 @@ const summaryMetrics: SummaryMetrics = {
         unidade_medida: newLog.unit || 'kg',
         motivo: newLog.type || 'Outro',
         custo_estimado: custoEstimado,
+        categoria: newLog.category || 'Outros',
+        local_producao: newLog.location || null,
+        responsavel: newLog.responsible || null,
+        observacoes: newLog.notes || null,
+        custo_unitario: Number(newLog.costPerUnit ?? 0),
+        co2e_kg: Number(newLog.co2eKg ?? 0),
         organizacao_id: organizacao?.id ?? null,
         registado_por: session?.user?.id ?? null,
       })
