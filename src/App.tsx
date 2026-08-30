@@ -487,22 +487,60 @@ const summaryMetrics: SummaryMetrics = {
 };
     
   // Handlers que estavam em falta no ficheiro original
-  const handleDeleteWasteLog = (id: string) => {
+  const handleDeleteWasteLog = async (id: string) => {
+    const previous = wasteLogs;
     setWasteLogs((prev) => prev.filter((w) => w.id !== id));
+
+    const { error } = await supabase.from('waste_logs').delete().eq('id', id);
+
+    if (error) {
+      console.error('Erro ao apagar desperdício:', error);
+      setWasteLogs(previous);
+      alert('Não foi possível apagar o registo. Tenta novamente.');
+    }
   };
 
-  const handleAddWasteLog = (newLog: Omit<WasteLog, 'id'>) => {
-    const id = `WST-${Date.now()}`;
+  const handleAddWasteLog = async (newLog: Omit<WasteLog, 'id'>) => {
     const createdDate = new Date();
+    const quantidade = Number(newLog.quantity ?? 0);
+    const custoEstimado = Number(
+      newLog.totalCost ?? (quantidade * Number(newLog.costPerUnit ?? 0))
+    );
+
+    const { data, error } = await supabase
+      .from('waste_logs')
+      .insert({
+        nome_produto: newLog.item || '',
+        quantidade,
+        unidade_medida: newLog.unit || 'kg',
+        motivo: newLog.type || 'Outro',
+        custo_estimado: custoEstimado,
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao gravar desperdício:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      alert('Não foi possível gravar o registo. Tenta novamente.');
+      return;
+    }
+
     const completeLog: WasteLog = {
-      id,
+      id: data.id,
       item: newLog.item || '',
       category: newLog.category || 'Outros',
       type: newLog.type || ('Outro' as WasteLog['type']),
-      quantity: Number(newLog.quantity ?? 0),
+      quantity: quantidade,
       unit: newLog.unit || 'kg',
       costPerUnit: Number(newLog.costPerUnit ?? 0),
-      totalCost: Number(newLog.totalCost ?? (Number(newLog.quantity ?? 0) * Number(newLog.costPerUnit ?? 0))),
+      totalCost: custoEstimado,
       date: newLog.date || createdDate.toLocaleDateString('en-CA'),
       time: newLog.time || createdDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
       location: newLog.location || '',
