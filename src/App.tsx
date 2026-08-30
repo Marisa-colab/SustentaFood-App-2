@@ -90,6 +90,10 @@ export default function App() {
       setTemperatureLogs([]);
       setCleaningLogs([]);
       setHaccpLogs([]);
+      setSuppliers([]);
+      setInvoices([]);
+      setStockItems([]);
+      setStockMovements([]);
       setLoading(false);
     }
   });
@@ -109,6 +113,10 @@ export default function App() {
       setTemperatureLogs([]);
       setCleaningLogs([]);
       setHaccpLogs([]);
+      setSuppliers([]);
+      setInvoices([]);
+      setStockItems([]);
+      setStockMovements([]);
       setLoading(false);
     }
   });
@@ -203,6 +211,10 @@ async function validarLicencaEOrg(userId: string) {
       setTemperatureLogs([]);
       setCleaningLogs([]);
       setHaccpLogs([]);
+      setSuppliers([]);
+      setInvoices([]);
+      setStockItems([]);
+      setStockMovements([]);
       return;
     }
 
@@ -327,6 +339,102 @@ setWasteLogs(wasteLogsConvertidos);
       }))
     );
 
+    // 7. Carregar Fornecedores, Faturas de Compra e Stock FEFO reais do Supabase
+    const [
+      { data: fornecedoresData, error: fornecedoresError },
+      { data: faturasData, error: faturasError },
+      { data: stockData, error: stockError },
+      { data: movementsData, error: movementsError },
+    ] = await Promise.all([
+      supabase
+        .from('fornecedores')
+        .select('id, nome, nif, categoria, pessoa_contacto, telefone, email, morada, estado, avaliacao')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('faturas_entradas')
+        .select('id, numero_fatura, fornecedor, nif, data_emissao, valor_total, nome_ficheiro, ocr_extraido, estado, responsavel, itens')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('stock_items')
+        .select('id, codigo, nome_produto, categoria, quantidade, unidade_medida, lote, data_validade, preco_custo_unitario, tipo_armazenamento, limite_minimo_stock, prioridade_fefo, fornecedor')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('stock_movements')
+        .select('id, stock_item_id, nome_item, tipo, quantidade, unidade, data, responsavel, motivo')
+        .order('data', { ascending: false }),
+    ]);
+
+    if (fornecedoresError) console.error('Erro ao carregar fornecedores:', fornecedoresError);
+    if (faturasError) console.error('Erro ao carregar faturas de compra:', faturasError);
+    if (stockError) console.error('Erro ao carregar stock FEFO:', stockError);
+    if (movementsError) console.error('Erro ao carregar movimentos de stock:', movementsError);
+
+    setSuppliers(
+      (fornecedoresData ?? []).map((registo) => ({
+        id: registo.id,
+        name: registo.nome ?? '',
+        nif: registo.nif ?? '',
+        category: (registo.categoria ?? 'Multicategoria') as Supplier['category'],
+        contactPerson: registo.pessoa_contacto ?? '',
+        phone: registo.telefone ?? '',
+        email: registo.email ?? '',
+        address: registo.morada ?? undefined,
+        status: (registo.estado ?? 'Ativo') as Supplier['status'],
+        rating: registo.avaliacao !== null && registo.avaliacao !== undefined ? Number(registo.avaliacao) : undefined,
+      }))
+    );
+
+    setInvoices(
+      (faturasData ?? []).map((registo) => ({
+        id: registo.id,
+        supplierName: registo.fornecedor ?? '',
+        nif: registo.nif ?? undefined,
+        invoiceNumber: registo.numero_fatura ?? '',
+        date: registo.data_emissao ?? '',
+        totalAmount: Number(registo.valor_total ?? 0),
+        items: Array.isArray(registo.itens) ? (registo.itens as PurchaseItem[]) : [],
+        fileName: registo.nome_ficheiro ?? undefined,
+        ocrExtracted: registo.ocr_extraido ?? undefined,
+        status: (registo.estado ?? 'Processada') as InvoicePurchase['status'],
+        responsible: registo.responsavel ?? '',
+      }))
+    );
+
+    setStockItems(
+      (stockData ?? []).map((registo) => ({
+        id: registo.id,
+        code: registo.codigo ?? '',
+        name: registo.nome_produto ?? '',
+        category: (registo.categoria ?? 'Outros') as WasteCategory,
+        quantity: Number(registo.quantidade ?? 0),
+        unit: (registo.unidade_medida ?? 'kg') as StockItem['unit'],
+        batchNumber: registo.lote ?? '',
+        expiryDate: registo.data_validade ?? '',
+        costPerUnit: Number(registo.preco_custo_unitario ?? 0),
+        storageType: (registo.tipo_armazenamento ?? 'Refrigerado') as StockItem['storageType'],
+        minStockThreshold: Number(registo.limite_minimo_stock ?? 10),
+        fefoPriority: (registo.prioridade_fefo ?? 'Normal') as StockItem['fefoPriority'],
+        supplier: registo.fornecedor ?? undefined,
+      }))
+    );
+
+    setStockMovements(
+      (movementsData ?? []).map((registo) => {
+        const dataMov = new Date(registo.data);
+        return {
+          id: registo.id,
+          stockItemId: registo.stock_item_id ?? '',
+          itemName: registo.nome_item ?? '',
+          type: (registo.tipo ?? 'Entrada') as StockMovement['type'],
+          quantity: Number(registo.quantidade ?? 0),
+          unit: registo.unidade ?? '',
+          date: Number.isFinite(dataMov.getTime()) ? registo.data : '',
+          responsible: registo.responsavel ?? '',
+          reason: registo.motivo ?? undefined,
+        };
+      })
+    );
+
   } catch (error) {
     console.error('Erro em validarLicencaEOrg:', error);
     setLicencaValida(false);
@@ -335,6 +443,10 @@ setWasteLogs(wasteLogsConvertidos);
     setTemperatureLogs([]);
     setCleaningLogs([]);
     setHaccpLogs([]);
+    setSuppliers([]);
+    setInvoices([]);
+    setStockItems([]);
+    setStockMovements([]);
   } finally {
     setLoading(false);
   }
@@ -349,30 +461,83 @@ setWasteLogs(wasteLogsConvertidos);
     }
   };
   
-  const handleAddStockMovement = (movData: Omit<StockMovement, 'id'>) => {
-    const newId = `MOV-${500 + stockMovements.length + 1}`;
-    const newMov: StockMovement = { id: newId, ...movData };
+  const handleAddStockMovement = async (movData: Omit<StockMovement, 'id'>) => {
+    const { data, error } = await supabase
+      .from('stock_movements')
+      .insert({
+        stock_item_id: movData.stockItemId || null,
+        nome_item: movData.itemName,
+        tipo: movData.type,
+        quantidade: movData.quantity,
+        unidade: movData.unit,
+        data: movData.date,
+        responsavel: movData.responsible,
+        motivo: movData.reason ?? null,
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao gravar movimento de stock:', error);
+      alert('Não foi possível gravar o movimento de stock. Tenta novamente.');
+      return;
+    }
+
+    const newMov: StockMovement = { id: data.id, ...movData };
     setStockMovements([newMov, ...stockMovements]);
 
-    setStockItems((prev) =>
-      prev.map((item) => {
-        if (item.id === movData.stockItemId) {
-          const qtyChange = movData.type === 'Entrada' ? movData.quantity : -movData.quantity;
-          const newQty = Math.max(0, item.quantity + qtyChange);
-          return { ...item, quantity: newQty };
-        }
-        return item;
-      })
-    );
+    const targetItem = stockItems.find((item) => item.id === movData.stockItemId);
+    if (targetItem) {
+      const qtyChange = movData.type === 'Entrada' ? movData.quantity : -movData.quantity;
+      const newQty = Math.max(0, targetItem.quantity + qtyChange);
+
+      setStockItems((prev) =>
+        prev.map((item) => (item.id === movData.stockItemId ? { ...item, quantity: newQty } : item))
+      );
+
+      const { error: updateError } = await supabase
+        .from('stock_items')
+        .update({ quantidade: newQty })
+        .eq('id', movData.stockItemId);
+
+      if (updateError) {
+        console.error('Erro ao atualizar quantidade em stock:', updateError);
+      }
+    }
   };
 
-  const handleAddSupplier = (newSupData: Omit<Supplier, 'id'>) => {
-    const newId = `SUP-${(suppliers.length + 1).toString().padStart(2, '0')}`;
-    const newSup: Supplier = { id: newId, ...newSupData };
+  const handleAddSupplier = async (newSupData: Omit<Supplier, 'id'>) => {
+    const { data, error } = await supabase
+      .from('fornecedores')
+      .insert({
+        nome: newSupData.name,
+        nif: newSupData.nif,
+        categoria: newSupData.category,
+        pessoa_contacto: newSupData.contactPerson,
+        telefone: newSupData.phone,
+        email: newSupData.email,
+        morada: newSupData.address ?? null,
+        estado: newSupData.status,
+        avaliacao: newSupData.rating ?? null,
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao gravar fornecedor:', error);
+      alert('Não foi possível gravar o fornecedor. Tenta novamente.');
+      return;
+    }
+
+    const newSup: Supplier = { id: data.id, ...newSupData };
     setSuppliers([newSup, ...suppliers]);
   };
 
-  const handleAddPurchaseAndStock = (purchaseData: {
+  const handleAddPurchaseAndStock = async (purchaseData: {
     supplierName: string;
     nif: string;
     invoiceNumber: string;
@@ -381,9 +546,36 @@ setWasteLogs(wasteLogsConvertidos);
     fileName?: string;
     items: PurchaseItem[];
   }) => {
-    const newInvoiceId = `INV-2026-${(invoices.length + 1).toString().padStart(3, '0')}`;
+    const responsavelNome = session?.user?.email ?? 'Utilizador';
+
+    // 1. Fatura de compra
+    const { data: invoiceRow, error: invoiceError } = await supabase
+      .from('faturas_entradas')
+      .insert({
+        numero_fatura: purchaseData.invoiceNumber,
+        fornecedor: purchaseData.supplierName,
+        nif: purchaseData.nif || null,
+        data_emissao: purchaseData.date,
+        valor_total: purchaseData.totalAmount,
+        nome_ficheiro: purchaseData.fileName ?? null,
+        ocr_extraido: true,
+        estado: 'Processada',
+        responsavel: responsavelNome,
+        itens: purchaseData.items,
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (invoiceError) {
+      console.error('Erro ao gravar fatura de compra:', invoiceError);
+      alert('Não foi possível gravar a fatura. Tenta novamente.');
+      return;
+    }
+
     const newInvoice: InvoicePurchase = {
-      id: newInvoiceId,
+      id: invoiceRow.id,
       supplierName: purchaseData.supplierName,
       nif: purchaseData.nif,
       invoiceNumber: purchaseData.invoiceNumber,
@@ -392,73 +584,136 @@ setWasteLogs(wasteLogsConvertidos);
       fileName: purchaseData.fileName,
       ocrExtracted: true,
       status: 'Processada',
-      responsible: 'João Silva (Comprador)',
+      responsible: responsavelNome,
       items: purchaseData.items
     };
     setInvoices([newInvoice, ...invoices]);
 
+    // 2. Criar fornecedor automaticamente, se ainda não existir
     const existingSup = suppliers.find(
       (s) => s.name.toLowerCase() === purchaseData.supplierName.toLowerCase()
     );
     if (!existingSup) {
-      const newSupId = `SUP-${(suppliers.length + 1).toString().padStart(2, '0')}`;
       const firstCat = purchaseData.items[0]?.category || 'Legumes';
-      setSuppliers([
-        {
-          id: newSupId,
-          name: purchaseData.supplierName,
+      const { data: supRow, error: supError } = await supabase
+        .from('fornecedores')
+        .insert({
+          nome: purchaseData.supplierName,
           nif: purchaseData.nif || '500000000',
-          category: firstCat,
-          contactPerson: 'Gestor Comercial',
-          phone: '+351 910 000 000',
+          categoria: firstCat,
+          pessoa_contacto: 'Gestor Comercial',
+          telefone: '+351 910 000 000',
           email: 'geral@fornecedor.pt',
-          status: 'Ativo',
-          rating: 5.0
-        },
-        ...suppliers
-      ]);
+          estado: 'Ativo',
+          avaliacao: 5.0,
+          organizacao_id: organizacao?.id ?? null,
+          registado_por: session?.user?.id ?? null,
+        })
+        .select()
+        .single();
+
+      if (supError) {
+        console.error('Erro ao criar fornecedor automaticamente:', supError);
+      } else if (supRow) {
+        setSuppliers((prev) => [
+          {
+            id: supRow.id,
+            name: purchaseData.supplierName,
+            nif: purchaseData.nif || '500000000',
+            category: firstCat,
+            contactPerson: 'Gestor Comercial',
+            phone: '+351 910 000 000',
+            email: 'geral@fornecedor.pt',
+            status: 'Ativo',
+            rating: 5.0
+          },
+          ...prev
+        ]);
+      }
     }
 
-    const newStockEntries: StockItem[] = [];
-    const newMovements: StockMovement[] = [];
+    // 3. Entradas em Stock FEFO (um item de stock por produto adquirido)
+    const stockRowsToInsert = purchaseData.items.map((item) => ({
+      codigo: `${item.category.slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      nome_produto: item.productName,
+      categoria: item.category,
+      quantidade: item.quantity,
+      unidade_medida: item.unit,
+      lote: item.batchNumber || `LOTE-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      data_validade: item.expiryDate,
+      preco_custo_unitario: item.pricePerUnit,
+      tipo_armazenamento: item.storageType || 'Refrigerado',
+      limite_minimo_stock: 10,
+      prioridade_fefo: 'Normal',
+      fornecedor: purchaseData.supplierName,
+      organizacao_id: organizacao?.id ?? null,
+      registado_por: session?.user?.id ?? null,
+    }));
 
-    purchaseData.items.forEach((item, index) => {
-      const stockId = `STK-IN-${Date.now()}-${index}`;
-      const code = `${item.category.slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+    const { data: stockRows, error: stockError } = await supabase
+      .from('stock_items')
+      .insert(stockRowsToInsert)
+      .select();
 
-      const newStockItem: StockItem = {
-        id: stockId,
-        code,
-        name: item.productName,
-        category: item.category,
-        quantity: item.quantity,
-        unit: item.unit,
-        batchNumber: item.batchNumber || `LOTE-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        expiryDate: item.expiryDate,
-        costPerUnit: item.pricePerUnit,
-        storageType: item.storageType || 'Refrigerado',
-        minStockThreshold: 10,
-        fefoPriority: 'Normal',
-        supplier: purchaseData.supplierName
-      };
+    if (stockError) {
+      console.error('Erro ao gravar entradas de stock:', stockError);
+      alert('A fatura foi gravada, mas não foi possível criar as entradas de stock. Verifica o separador Stock FEFO.');
+      return;
+    }
 
-      newStockEntries.push(newStockItem);
-
-      newMovements.push({
-        id: `MOV-IN-${Date.now()}-${index}`,
-        stockItemId: stockId,
-        itemName: item.productName,
-        type: 'Entrada',
-        quantity: item.quantity,
-        unit: item.unit,
-        date: `${purchaseData.date} 09:00`,
-        responsible: 'João Silva (Entrada Fatura OCR)',
-        reason: `Compra via ${purchaseData.invoiceNumber} (${purchaseData.supplierName})`
-      });
-    });
+    const newStockEntries: StockItem[] = (stockRows ?? []).map((registo) => ({
+      id: registo.id,
+      code: registo.codigo ?? '',
+      name: registo.nome_produto ?? '',
+      category: (registo.categoria ?? 'Outros') as WasteCategory,
+      quantity: Number(registo.quantidade ?? 0),
+      unit: (registo.unidade_medida ?? 'kg') as StockItem['unit'],
+      batchNumber: registo.lote ?? '',
+      expiryDate: registo.data_validade ?? '',
+      costPerUnit: Number(registo.preco_custo_unitario ?? 0),
+      storageType: (registo.tipo_armazenamento ?? 'Refrigerado') as StockItem['storageType'],
+      minStockThreshold: Number(registo.limite_minimo_stock ?? 10),
+      fefoPriority: (registo.prioridade_fefo ?? 'Normal') as StockItem['fefoPriority'],
+      supplier: registo.fornecedor ?? undefined,
+    }));
 
     setStockItems((prev) => [...newStockEntries, ...prev]);
-    setStockMovements((prev) => [...newMovements, ...prev]);
+
+    // 4. Movimentos de stock (entrada) associados a cada produto
+    const movementRowsToInsert = newStockEntries.map((stockItem) => ({
+      stock_item_id: stockItem.id,
+      nome_item: stockItem.name,
+      tipo: 'Entrada',
+      quantidade: stockItem.quantity,
+      unidade: stockItem.unit,
+      data: `${purchaseData.date}T09:00:00`,
+      responsavel: `${responsavelNome} (Entrada Fatura OCR)`,
+      motivo: `Compra via ${purchaseData.invoiceNumber} (${purchaseData.supplierName})`,
+      organizacao_id: organizacao?.id ?? null,
+      registado_por: session?.user?.id ?? null,
+    }));
+
+    const { data: movementRows, error: movementError } = await supabase
+      .from('stock_movements')
+      .insert(movementRowsToInsert)
+      .select();
+
+    if (movementError) {
+      console.error('Erro ao gravar movimentos de stock:', movementError);
+    } else {
+      const newMovements: StockMovement[] = (movementRows ?? []).map((registo) => ({
+        id: registo.id,
+        stockItemId: registo.stock_item_id ?? '',
+        itemName: registo.nome_item ?? '',
+        type: (registo.tipo ?? 'Entrada') as StockMovement['type'],
+        quantity: Number(registo.quantidade ?? 0),
+        unit: registo.unidade ?? '',
+        date: registo.data ?? '',
+        responsible: registo.responsavel ?? '',
+        reason: registo.motivo ?? undefined,
+      }));
+      setStockMovements((prev) => [...newMovements, ...prev]);
+    }
   };
 
   const handleAddDonation = (newDonData: Omit<DonationLog, 'id'>) => {
