@@ -94,6 +94,8 @@ export default function App() {
       setInvoices([]);
       setStockItems([]);
       setStockMovements([]);
+      setDonations([]);
+      setValorizationLogs([]);
       setLoading(false);
     }
   });
@@ -117,6 +119,8 @@ export default function App() {
       setInvoices([]);
       setStockItems([]);
       setStockMovements([]);
+      setDonations([]);
+      setValorizationLogs([]);
       setLoading(false);
     }
   });
@@ -215,6 +219,8 @@ async function validarLicencaEOrg(userId: string) {
       setInvoices([]);
       setStockItems([]);
       setStockMovements([]);
+      setDonations([]);
+      setValorizationLogs([]);
       return;
     }
 
@@ -345,6 +351,8 @@ setWasteLogs(wasteLogsConvertidos);
       { data: faturasData, error: faturasError },
       { data: stockData, error: stockError },
       { data: movementsData, error: movementsError },
+      { data: doacoesData, error: doacoesError },
+      { data: valorizacoesData, error: valorizacoesError },
     ] = await Promise.all([
       supabase
         .from('fornecedores')
@@ -362,12 +370,22 @@ setWasteLogs(wasteLogsConvertidos);
         .from('stock_movements')
         .select('id, stock_item_id, nome_item, tipo, quantidade, unidade, data, responsavel, motivo')
         .order('data', { ascending: false }),
+      supabase
+        .from('doacoes')
+        .select('id, instituicao, nif, pessoa_contacto, data, itens, total_kg, valor_total, responsavel, estado, codigo_certificado, notas_recibo')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('valorizacoes')
+        .select('id, destino, quantidade_kg, data, entidade_parceira, co2_poupado_kg, responsavel, notas')
+        .order('created_at', { ascending: false }),
     ]);
 
     if (fornecedoresError) console.error('Erro ao carregar fornecedores:', fornecedoresError);
     if (faturasError) console.error('Erro ao carregar faturas de compra:', faturasError);
     if (stockError) console.error('Erro ao carregar stock FEFO:', stockError);
     if (movementsError) console.error('Erro ao carregar movimentos de stock:', movementsError);
+    if (doacoesError) console.error('Erro ao carregar doações:', doacoesError);
+    if (valorizacoesError) console.error('Erro ao carregar valorizações:', valorizacoesError);
 
     setSuppliers(
       (fornecedoresData ?? []).map((registo) => ({
@@ -435,6 +453,36 @@ setWasteLogs(wasteLogsConvertidos);
       })
     );
 
+    setDonations(
+      (doacoesData ?? []).map((registo) => ({
+        id: registo.id,
+        institutionName: registo.instituicao ?? '',
+        nif: registo.nif ?? '',
+        contactPerson: registo.pessoa_contacto ?? '',
+        date: registo.data ?? '',
+        items: Array.isArray(registo.itens) ? (registo.itens as DonationLog['items']) : [],
+        totalKg: Number(registo.total_kg ?? 0),
+        totalValue: Number(registo.valor_total ?? 0),
+        responsible: registo.responsavel ?? '',
+        status: (registo.estado ?? 'Concluída') as DonationLog['status'],
+        certificateCode: registo.codigo_certificado ?? '',
+        receiptNotes: registo.notas_recibo ?? undefined,
+      }))
+    );
+
+    setValorizationLogs(
+      (valorizacoesData ?? []).map((registo) => ({
+        id: registo.id,
+        destination: (registo.destino ?? 'Outro') as ValorizationLog['destination'],
+        quantityKg: Number(registo.quantidade_kg ?? 0),
+        date: registo.data ?? '',
+        partnerEntity: registo.entidade_parceira ?? '',
+        co2SavedKg: Number(registo.co2_poupado_kg ?? 0),
+        responsible: registo.responsavel ?? '',
+        notes: registo.notas ?? undefined,
+      }))
+    );
+
   } catch (error) {
     console.error('Erro em validarLicencaEOrg:', error);
     setLicencaValida(false);
@@ -447,6 +495,8 @@ setWasteLogs(wasteLogsConvertidos);
     setInvoices([]);
     setStockItems([]);
     setStockMovements([]);
+    setDonations([]);
+    setValorizationLogs([]);
   } finally {
     setLoading(false);
   }
@@ -716,10 +766,34 @@ setWasteLogs(wasteLogsConvertidos);
     }
   };
 
-  const handleAddDonation = (newDonData: Omit<DonationLog, 'id'>) => {
-    const newId = `DON-2026-${(donations.length + 1).toString().padStart(2, '0')}`;
-    const newDonation: DonationLog = { id: newId, ...newDonData };
-    setDonations([newDonation, ...donations]);
+  const handleAddDonation = async (newDonData: Omit<DonationLog, 'id'>) => {
+    const { data, error } = await supabase
+      .from('doacoes')
+      .insert({
+        instituicao: newDonData.institutionName,
+        nif: newDonData.nif,
+        pessoa_contacto: newDonData.contactPerson,
+        data: newDonData.date,
+        itens: newDonData.items,
+        total_kg: newDonData.totalKg,
+        valor_total: newDonData.totalValue,
+        responsavel: newDonData.responsible,
+        estado: newDonData.status,
+        codigo_certificado: newDonData.certificateCode,
+        notas_recibo: newDonData.receiptNotes ?? null,
+        organizacao_id: organizacao?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao gravar doação:', error);
+      alert('Não foi possível gravar a doação. Tenta novamente.');
+      return;
+    }
+
+    const newDonation: DonationLog = { id: data.id, ...newDonData };
+    setDonations((prev) => [newDonation, ...prev]);
   };
 
   const handleOpenDonationFromStock = (name: string, category: WasteCategory, quantity: number) => {
@@ -727,10 +801,30 @@ setWasteLogs(wasteLogsConvertidos);
     setActiveTab('donations');
   };
 
-  const handleAddValorizationLog = (valData: Omit<ValorizationLog, 'id'>) => {
-    const newId = `VAL-${(valorizationLogs.length + 1).toString().padStart(2, '0')}`;
-    const newVal: ValorizationLog = { id: newId, ...valData };
-    setValorizationLogs([newVal, ...valorizationLogs]);
+  const handleAddValorizationLog = async (valData: Omit<ValorizationLog, 'id'>) => {
+    const { data, error } = await supabase
+      .from('valorizacoes')
+      .insert({
+        destino: valData.destination,
+        quantidade_kg: valData.quantityKg,
+        data: valData.date,
+        entidade_parceira: valData.partnerEntity,
+        co2_poupado_kg: valData.co2SavedKg,
+        responsavel: valData.responsible,
+        notas: valData.notes ?? null,
+        organizacao_id: organizacao?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao gravar registo de valorização:', error);
+      alert('Não foi possível gravar o registo de valorização. Tenta novamente.');
+      return;
+    }
+
+    const newVal: ValorizationLog = { id: data.id, ...valData };
+    setValorizationLogs((prev) => [newVal, ...prev]);
   };
 
   const handleAddHaccpLog = async (haccpData: Omit<HaccpLog, 'id'>) => {
