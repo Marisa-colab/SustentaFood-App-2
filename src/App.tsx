@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './components/Login';
+import SetPasswordScreen from './components/SetPasswordScreen';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
 import { WasteLogView } from './components/WasteLogView';
@@ -56,6 +57,20 @@ export default function App() {
   const [licencaValida, setLicencaValida] = useState<boolean | null>(null);
   const [organizacao, setOrganizacao] = useState<any>(null);
 
+  // Verdadeiro quando a pessoa acabou de aceitar um convite (ou pediu reset de
+  // password) e ainda não definiu a sua password. Enquanto isto for verdade,
+  // mesmo havendo sessão ativa, não mostramos a app nem o login normal —
+  // mostramos o ecrã "Definir password".
+  const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
+  // Guardado também numa ref porque os callbacks de getSession()/onAuthStateChange
+  // ficam "presos" ao valor de needsPasswordSetup que existia quando o efeito
+  // correu (closure), e não ao valor atualizado pelo setState.
+  const needsPasswordSetupRef = useRef(false);
+  const marcarNecessitaPassword = (valor: boolean) => {
+    needsPasswordSetupRef.current = valor;
+    setNeedsPasswordSetup(valor);
+  };
+
   // --- CORE APPLICATION DATA STATE ---
   const [wasteLogs, setWasteLogs] = useState<WasteLog[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -77,11 +92,63 @@ export default function App() {
   const [prefillDonationItem, setPrefillDonationItem] = useState<{ name: string; category: WasteCategory; quantity: number } | null>(null);
 
  useEffect(() => {
-  // 1. Obter a sessão atual do Supabase
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  // 0. Detetar se esta visita vem de um link de convite ou de recuperação de
+  //    password, ANTES de decidirmos o que fazer com a sessão.
+  //
+  //    O Supabase pode entregar o token de duas formas diferentes consoante a
+  //    configuração do projeto:
+  //    a) Fluxo "implícito" (mais antigo): os tokens vêm no fragmento da URL
+  //       (#access_token=...&type=invite) e o supabase-js consome-os sozinho
+  //       ao criar o client (detectSessionInUrl, ligado por omissão).
+  //    b) Fluxo atual (OTP/PKCE): a URL trás ?token_hash=...&type=invite e é
+  //       preciso chamar explicitamente supabase.auth.verifyOtp() para trocar
+  //       esse token por uma sessão — o supabase-js NÃO faz isto sozinho.
+  //
+  //    Sem isto, quem aceita um convite acaba a cair no formulário de login
+  //    normal, a pedir uma password que nunca chegou a definir.
+  const url = new URL(window.location.href);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+  const tipoConvite = url.searchParams.get('type') || hashParams.get('type');
+  const tokenHash = url.searchParams.get('token_hash');
+
+  const ehConviteOuRecuperacao = tipoConvite === 'invite' || tipoConvite === 'recovery';
+
+  if (ehConviteOuRecuperacao) {
+    marcarNecessitaPassword(true);
+  }
+
+  const limparUrl = () => {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  };
+
+  const iniciar = async () => {
+    // Fluxo (b): temos um token_hash na query string — trocá-lo por sessão.
+    if (ehConviteOuRecuperacao && tokenHash) {
+      const { error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: tipoConvite as 'invite' | 'recovery',
+      });
+
+      if (error) {
+        console.error('Erro ao validar o convite/link de recuperação:', error);
+        // Não conseguimos validar o link — mostrar o login normal em vez de
+        // deixar a pessoa presa no ecrã de "definir password".
+        marcarNecessitaPassword(false);
+      }
+
+      limparUrl();
+    }
+
+    // 1. Obter a sessão atual do Supabase (já reflete o verifyOtp acima,
+    //    ou os tokens do fluxo implícito que o supabase-js já consumiu).
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
     setSession(session);
 
-    if (session) {
+    if (session && !needsPasswordSetupRef.current) {
       validarLicencaEOrg(session.user.id);
     } else {
       setLicencaValida(null);
@@ -98,7 +165,9 @@ export default function App() {
       setValorizationLogs([]);
       setLoading(false);
     }
-  });
+  };
+
+  iniciar();
 
   // 2. Escutar alterações de autenticação
   const {
@@ -106,8 +175,18 @@ export default function App() {
   } = supabase.auth.onAuthStateChange((_event, session) => {
     setSession(session);
 
-    if (session) {
+    // O Supabase pode emitir este evento específico para links de
+    // recuperação/convite processados no fluxo implícito (tokens no hash).
+    if (_event === 'PASSWORD_RECOVERY') {
+      marcarNecessitaPassword(true);
+    }
+
+    if (session && !needsPasswordSetupRef.current) {
       validarLicencaEOrg(session.user.id);
+    } else if (session) {
+      // Sessão válida mas ainda a aguardar que a pessoa defina a password —
+      // não carregar dados da app, só parar o "A carregar...".
+      setLoading(false);
     } else {
       setLicencaValida(null);
       setOrganizacao(null);
@@ -1069,6 +1148,20 @@ const summaryMetrics: SummaryMetrics = {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white font-sans">
         A carregar sistema...
       </div>
+    );
+  }
+
+  // Sessão válida (veio do link de convite ou de recuperação de password),
+  // mas a pessoa ainda não definiu a sua password — mostrar esse ecrã em vez
+  // do login normal ou da app.
+  if (session && needsPasswordSetup) {
+    return (
+      <SetPasswordScreen
+        onPasswordSet={() => {
+          marcarNecessitaPassword(false);
+          validarLicencaEOrg(session.user.id);
+        }}
+      />
     );
   }
 
