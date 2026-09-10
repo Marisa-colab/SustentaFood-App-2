@@ -8,7 +8,7 @@ import {
   MapPin,
   User,
   Scale,
-  DollarSign,
+  Euro,
   Cloud,
   Download
 } from 'lucide-react';
@@ -141,7 +141,7 @@ export const WasteLogView: React.FC<WasteLogViewProps> = ({
             <div className="text-2xl font-bold text-rose-400 mt-0.5">{totalCost.toFixed(2)} €</div>
           </div>
           <div className="p-2.5 bg-slate-800 rounded-xl text-rose-400 border border-slate-700">
-            <DollarSign className="w-5 h-5" />
+            <Euro className="w-5 h-5" />
           </div>
         </div>
 
