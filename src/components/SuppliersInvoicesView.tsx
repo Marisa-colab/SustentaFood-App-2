@@ -159,7 +159,7 @@ export const SuppliersInvoicesView: React.FC<SuppliersInvoicesViewProps> = ({
             }`}
           >
             <Building2 className="w-4 h-4" />
-            Fornecedores Cadastrados ({suppliers.length})
+            Fornecedores Registados ({suppliers.length})
           </button>
 
           <button
@@ -396,7 +396,7 @@ export const SuppliersInvoicesView: React.FC<SuppliersInvoicesViewProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-emerald-400" />
-                Cadastrar Novo Fornecedor
+                Registar Novo Fornecedor
               </h3>
               <button
                 onClick={() => setIsNewSupplierModalOpen(false)}
