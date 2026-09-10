@@ -123,7 +123,7 @@ export const InvoiceUploadModal: React.FC<InvoiceUploadModalProps> = ({
         setFilePreview(base64String);
 
         setOcrMessage(
-          'Extraindo fornecedor, produtos, validade e valores via Gemini IA...'
+          'Extrair fornecedor, produtos, validade e valores via Gemini IA...'
         );
 
         // Send to backend endpoint
