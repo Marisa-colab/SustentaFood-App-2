@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   TrendingDown,
-  DollarSign,
+  Euro,
   Cloud,
   Target,
   Sparkles,
@@ -142,7 +142,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center justify-between text-rose-700 mb-2">
             <span className="text-xs font-medium uppercase tracking-wider">Valor Perdido</span>
             <div className="p-2 rounded-xl bg-rose-100 text-rose-600">
-              <DollarSign className="w-4 h-4" />
+              <Euro className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-1">
