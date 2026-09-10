@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   TrendingDown,
-  DollarSign,
   Scale,
   Cloud,
   PieChart as PieIcon,
