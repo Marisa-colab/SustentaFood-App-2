@@ -259,7 +259,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         });
         responseText = response.text || '';
       } catch (firstError: any) {
-        console.warn(`Falha no modelo principal (${currentModelToUse}), tentando modelo de recurso (${FALLBACK_MODEL})...`, firstError);
+        console.warn(`Falha no modelo principal (${currentModelToUse}), tentar modelo de recurso (${FALLBACK_MODEL})...`, firstError);
         
         // Attempt fallback model
         currentModelToUse = FALLBACK_MODEL;
