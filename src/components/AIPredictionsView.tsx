@@ -357,7 +357,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         ...prev,
         {
           sender: 'bot',
-          text: `⚠️ Erro na comunicação com a IA: ${details.message} (Modelo: ${selectedModel}). Mudando para resposta assistida local.`,
+          text: `⚠️ Erro na comunicação com a IA: ${details.message} (Modelo: ${selectedModel}). A Mudar para resposta assistida local.`,
           isError: true
         }
       ]);
