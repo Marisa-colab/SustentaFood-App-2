@@ -22,8 +22,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   metrics,
   wasteLogs
 }) => {
-  const [selectedMonth, setSelectedMonth] = useState('Julho 2026');
+    const monthOptions = React.useMemo(() => {
+    const nomesMeses = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const options: string[] = [];
+    const hoje = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      options.push(`${nomesMeses[d.getMonth()]} ${d.getFullYear()}`);
+    }
+    return options;
+  }, []);
 
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]);
   // Export CSV
   const handleExportExcel = () => {
     const headers = ['ID', 'Data', 'Hora', 'Alimento', 'Categoria', 'Tipo', 'Quantidade', 'Unidade', 'Custo Total (€)', 'CO2e (kg)', 'Local', 'Responsavel'];
@@ -70,9 +83,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 focus:outline-none"
           >
-            <option value="Julho 2026">Julho 2026</option>
-            <option value="Junho 2026">Junho 2026</option>
-            <option value="Maio 2026">Maio 2026</option>
+           {monthOptions.map((mes) => (
+              <option key={mes} value={mes}>{mes}</option>
+            ))}
           </select>
 
           <button
