@@ -36,6 +36,60 @@ interface Cliente {
   comprovativo_numero: string | null;
 }
 
+interface Acesso {
+  id: number;
+  user_id: string;
+  organizacao_id: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+// Limites para assinalar "possível partilha de conta" (últimos 30 dias).
+const LIMITE_IPS = 6;
+const LIMITE_DISPOSITIVOS = 3;
+
+// Descrição curta do dispositivo a partir do user agent (ex.: "Android · Chrome").
+const dispositivoDe = (ua: string | null) => {
+  if (!ua) return 'Desconhecido';
+  const so = /Android/i.test(ua)
+    ? 'Android'
+    : /iPhone|iPad|iOS/i.test(ua)
+      ? 'iOS'
+      : /Windows/i.test(ua)
+        ? 'Windows'
+        : /Mac OS X|Macintosh/i.test(ua)
+          ? 'Mac'
+          : /Linux/i.test(ua)
+            ? 'Linux'
+            : 'Outro';
+  const nav = /Edg\//i.test(ua)
+    ? 'Edge'
+    : /OPR\/|Opera/i.test(ua)
+      ? 'Opera'
+      : /Firefox/i.test(ua)
+        ? 'Firefox'
+        : /Chrome|CriOS/i.test(ua)
+          ? 'Chrome'
+          : /Safari/i.test(ua)
+            ? 'Safari'
+            : 'Navegador';
+  return `${so} · ${nav}`;
+};
+
+const resumoAcessos = (acessos: Acesso[]) => {
+  const ips = new Set(acessos.map((a) => a.ip).filter(Boolean));
+  const dispositivos = new Set(acessos.map((a) => dispositivoDe(a.user_agent)));
+  return {
+    ips: ips.size,
+    dispositivos: dispositivos.size,
+    suspeito: ips.size >= LIMITE_IPS || dispositivos.size >= LIMITE_DISPOSITIVOS,
+  };
+};
+
+const formatarDataHora = (iso: string) =>
+  new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+
 // O que está no formulário de cada cliente (tudo em texto, como nos inputs).
 interface Formulario {
   validade: string; // yyyy-mm-dd
@@ -161,6 +215,7 @@ que deva ser emitido através de programa certificado pela Autoridade Tributári
 
 export const ClientesAdminView: React.FC = () => {
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [acessos, setAcessos] = useState<Acesso[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [aGuardar, setAGuardar] = useState<string | null>(null);
@@ -183,6 +238,17 @@ export const ClientesAdminView: React.FC = () => {
       setClientes((data ?? []) as Cliente[]);
       setRascunhos({});
     }
+
+    // Acessos (IP/dispositivo) dos últimos 30 dias, para detetar partilha de contas.
+    const desde = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data: dadosAcessos } = await supabase
+      .from('acessos_log')
+      .select('*')
+      .gte('created_at', desde)
+      .order('created_at', { ascending: false })
+      .limit(2000);
+    setAcessos((dadosAcessos ?? []) as Acesso[]);
+
     setLoading(false);
   };
 
@@ -340,6 +406,8 @@ export const ClientesAdminView: React.FC = () => {
             const estado = estadoLicenca(c);
             const f = formDe(c);
             const alterado = !iguais(f, formularioDe(c));
+            const acessosCliente = acessos.filter((a) => a.organizacao_id === c.id);
+            const resumo = resumoAcessos(acessosCliente);
             const podeEmitir = Boolean(c.pago) && Number(c.montante_pago ?? 0) > 0 && !alterado;
 
             return (
@@ -380,6 +448,36 @@ export const ClientesAdminView: React.FC = () => {
                     <p className={lblCls}>Comprovativo</p>
                     <p className="font-medium text-slate-800">{c.comprovativo_numero ?? 'Ainda não emitido'}</p>
                   </div>
+                </div>
+
+                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-slate-800">Acessos nos últimos 30 dias:</span>
+                    <span className="text-slate-700">
+                      {acessosCliente.length === 0
+                        ? 'sem registos'
+                        : `${resumo.ips} IP${resumo.ips === 1 ? '' : 's'} · ${resumo.dispositivos} dispositivo${
+                            resumo.dispositivos === 1 ? '' : 's'
+                          }`}
+                    </span>
+                    {resumo.suspeito && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full border bg-rose-50 text-rose-700 border-rose-300">
+                        Possível partilha de conta
+                      </span>
+                    )}
+                  </div>
+                  {acessosCliente.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs text-slate-600">Ver últimos acessos</summary>
+                      <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                        {acessosCliente.slice(0, 15).map((a) => (
+                          <li key={a.id}>
+                            {formatarDataHora(a.created_at)} · {a.ip ?? 'IP desconhecido'} · {dispositivoDe(a.user_agent)}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </div>
 
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
