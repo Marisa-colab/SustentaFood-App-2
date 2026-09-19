@@ -215,6 +215,15 @@ export default function App() {
 async function validarLicencaEOrg(userId: string) {
   setLoading(true);
 
+  // Regista o acesso (IP e dispositivo) para a superadministradora poder
+  // detetar partilha de contas. O IP é lido no servidor (função registar_acesso).
+  supabase
+    .rpc('registar_acesso', { p_user_agent: navigator.userAgent })
+    .then(
+      () => undefined,
+      () => undefined
+    );
+
   try {
     // 1. Carregar o perfil e a organização
     const {
@@ -997,11 +1006,84 @@ setWasteLogs(wasteLogsConvertidos);
     setCleaningLogs([newClean, ...cleaningLogs]);
   };
 
+  // --- ALERTAS AUTOMÁTICOS DE VALIDADE (stock perto do fim de validade) ---
+  // Os alertas são calculados a partir do stock real: qualquer lote com
+  // quantidade > 0 que venza dentro de LIMITE_DIAS_ALERTA dias (ou que já
+  // tenha vencido) gera um alerta. Quais foram já lidos fica guardado neste
+  // navegador.
+  const LIMITE_DIAS_ALERTA = 5;
+  const CHAVE_ALERTAS_LIDOS = 'sf_alertas_lidos';
+
+  const lerAlertasLidos = (): string[] => {
+    try {
+      return JSON.parse(localStorage.getItem(CHAVE_ALERTAS_LIDOS) || '[]');
+    } catch {
+      return [];
+    }
+  };
+
+  const guardarAlertasLidos = (ids: string[]) => {
+    try {
+      localStorage.setItem(CHAVE_ALERTAS_LIDOS, JSON.stringify(Array.from(new Set(ids))));
+    } catch {
+      // sem armazenamento local: os alertas voltam a aparecer como não lidos
+    }
+  };
+
+  useEffect(() => {
+    const lidos = new Set(lerAlertasLidos());
+    const hojeStr = new Date().toLocaleDateString('en-CA'); // AAAA-MM-DD, hora local
+    const hojeMs = new Date(hojeStr).getTime();
+
+    const gerados: { alerta: AlertItem; dias: number }[] = [];
+
+    for (const item of stockItems) {
+      if (!item.expiryDate || !(item.quantity > 0)) continue;
+      const expMs = new Date(item.expiryDate).getTime();
+      if (!Number.isFinite(expMs)) continue;
+
+      const dias = Math.round((expMs - hojeMs) / 86400000);
+      if (dias > LIMITE_DIAS_ALERTA) continue;
+
+      const quando =
+        dias < 0
+          ? `venceu há ${-dias} dia${-dias === 1 ? '' : 's'}`
+          : dias === 0
+            ? 'vence hoje'
+            : dias === 1
+              ? 'vence amanhã'
+              : `vence em ${dias} dias`;
+
+      const id = `VAL-${item.id}-${item.expiryDate}`;
+
+      gerados.push({
+        dias,
+        alerta: {
+          id,
+          type: 'expiring_soon',
+          severity: dias <= 2 ? 'high' : 'medium',
+          title: dias < 0 ? 'Produto com validade ultrapassada' : 'Aviso FEFO: Validade Próxima',
+          message: `${item.name} (${item.quantity} ${item.unit}${
+            item.batchNumber ? `, lote ${item.batchNumber}` : ''
+          }) ${quando} (${item.expiryDate}). Dar prioridade na cozinha, promover na ementa ou doar.`,
+          date: hojeStr,
+          read: lidos.has(id),
+          relatedCategory: item.category,
+        },
+      });
+    }
+
+    gerados.sort((a, b) => a.dias - b.dias);
+    setAlerts(gerados.map((g) => g.alerta));
+  }, [stockItems]);
+
   const handleMarkAlertAsRead = (id: string) => {
+    guardarAlertasLidos([...lerAlertasLidos(), id]);
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, read: true } : a)));
   };
 
   const handleClearAllAlerts = () => {
+    guardarAlertasLidos([...lerAlertasLidos(), ...alerts.map((a) => a.id)]);
     setAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
   };
 
