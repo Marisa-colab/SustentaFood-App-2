@@ -12,7 +12,8 @@ import {
   Bell,
   Sparkles,
   PlusCircle,
-  Truck
+  Truck,
+  Users
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -20,13 +21,15 @@ interface HeaderProps {
   setActiveTab: (tab: string) => void;
   unreadAlertCount: number;
   onOpenNewWasteModal: () => void;
+  isSuperAdmin?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   unreadAlertCount,
-  onOpenNewWasteModal
+  onOpenNewWasteModal,
+  isSuperAdmin = false
 }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -39,6 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'haccp', label: 'HACCP', icon: ShieldAlert },
     { id: 'ai_forecast', label: 'Previsões IA', icon: Sparkles },
     { id: 'reports', label: 'Relatórios', icon: FileSpreadsheet },
+    // Só aparece para a superadministradora.
+    ...(isSuperAdmin ? [{ id: 'clientes', label: 'Clientes', icon: Users }] : []),
   ];
 
   return (
