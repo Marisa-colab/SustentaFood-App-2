@@ -16,6 +16,7 @@ import { HaccpView } from './components/HaccpView';
 import { AIPredictionsView } from './components/AIPredictionsView';
 import { ReportsView } from './components/ReportsView';
 import { AlertsView } from './components/AlertsView';
+import { ClientesAdminView } from './components/ClientesAdminView';
 
 import {
   WasteLog,
@@ -56,6 +57,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [licencaValida, setLicencaValida] = useState<boolean | null>(null);
   const [organizacao, setOrganizacao] = useState<any>(null);
+  const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
 
   // Verdadeiro quando a pessoa acabou de aceitar um convite (ou pediu reset de
   // password) e ainda não definiu a sua password. Enquanto isto for verdade,
@@ -273,6 +275,7 @@ async function validarLicencaEOrg(userId: string) {
       Boolean(isSuperAdmin) || licencaAtiva;
 
     setLicencaValida(acessoPermitido);
+    setIsSuperAdminUser(Boolean(isSuperAdmin));
 
     setOrganizacao(
       org
@@ -1205,6 +1208,7 @@ const summaryMetrics: SummaryMetrics = {
         setActiveTab={setActiveTab}
         unreadAlertCount={unreadAlertCount}
         onOpenNewWasteModal={() => setIsNewWasteModalOpen(true)}
+        isSuperAdmin={isSuperAdminUser}
       />
 
       {/* View Content Body */}
@@ -1295,6 +1299,8 @@ const summaryMetrics: SummaryMetrics = {
             wasteLogs={wasteLogs}
           />
         )}
+
+        {activeTab === 'clientes' && isSuperAdminUser && <ClientesAdminView />}
 
         {activeTab === 'alerts' && (
           <AlertsView
