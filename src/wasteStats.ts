@@ -51,3 +51,19 @@ export const computeMonthlyWasteTrend = (wasteLogs: WasteLog[], months = 6) => {
     };
   });
 };
+
+// Totais de um mês (ano, mês 0-11) a partir dos registos
+export const computeMonthTotals = (wasteLogs: WasteLog[], year: number, month: number) => {
+  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const logs = wasteLogs.filter((l) => (l.date || '').startsWith(prefix));
+  return {
+    logs,
+    kg: logs.reduce((s, l) => s + (l.quantity || 0), 0),
+    cost: logs.reduce((s, l) => s + (l.totalCost || 0), 0),
+    co2: logs.reduce((s, l) => s + (l.co2eKg || 0), 0),
+  };
+};
+
+// Variação percentual entre dois valores (null quando não há base de comparação)
+export const percentChange = (current: number, previous: number): number | null =>
+  previous > 0 ? Math.round(((current - previous) / previous) * 1000) / 10 : null;

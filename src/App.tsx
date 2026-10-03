@@ -48,12 +48,15 @@ import {
   initialSuppliers,
   initialInvoices
 } from './mockData';
+import { setCurrentUserName } from './currentUser';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // --- ESTADOS DE AUTENTICAÇÃO E LICENCIAMENTO ---
   const [session, setSession] = useState<any>(null);
+  // Mantém o nome do utilizador disponível para preencher o campo "responsável"
+  setCurrentUserName(session?.user?.user_metadata?.full_name || session?.user?.email || '');
   const [loading, setLoading] = useState(true);
   const [licencaValida, setLicencaValida] = useState<boolean | null>(null);
   const [organizacao, setOrganizacao] = useState<any>(null);
@@ -236,6 +239,7 @@ async function validarLicencaEOrg(userId: string) {
         organizacoes (
           id,
           nome,
+          nif,
           status_licenca,
           inicio_licenca,
           valida_ate
@@ -291,6 +295,7 @@ async function validarLicencaEOrg(userId: string) {
         ? {
             id: org.id,
             nome: org.nome ?? 'Organização sem nome',
+            nif: org.nif ?? '',
           }
         : isSuperAdmin
           ? {
@@ -631,8 +636,11 @@ setWasteLogs(wasteLogsConvertidos);
 
     const targetItem = stockItems.find((item) => item.id === movData.stockItemId);
     if (targetItem) {
-      const qtyChange = movData.type === 'Entrada' ? movData.quantity : -movData.quantity;
-      const newQty = Math.max(0, targetItem.quantity + qtyChange);
+      // Ajuste de inventário: a quantidade indicada é a quantidade contada
+      const newQty =
+        movData.type === 'Ajuste / Inventário'
+          ? Math.max(0, movData.quantity)
+          : Math.max(0, targetItem.quantity + (movData.type === 'Entrada' ? movData.quantity : -movData.quantity));
 
       setStockItems((prev) =>
         prev.map((item) => (item.id === movData.stockItemId ? { ...item, quantity: newQty } : item))
@@ -647,6 +655,101 @@ setWasteLogs(wasteLogsConvertidos);
         console.error('Erro ao atualizar quantidade em stock:', updateError);
       }
     }
+  };
+
+  // Entrada manual de um novo artigo em stock (sem fatura), com o respetivo movimento de entrada
+  const handleAddStockItemManual = async (novo: {
+    name: string;
+    category: WasteCategory;
+    quantity: number;
+    unit: StockItem['unit'];
+    batchNumber: string;
+    expiryDate: string;
+    costPerUnit: number;
+    storageType: StockItem['storageType'];
+    supplier: string;
+  }): Promise<boolean> => {
+    const responsavelNome = session?.user?.email ?? 'Utilizador';
+    const { data: registo, error } = await supabase
+      .from('stock_items')
+      .insert({
+        codigo: `${novo.category.slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+        nome_produto: novo.name,
+        categoria: novo.category,
+        quantidade: novo.quantity,
+        unidade_medida: novo.unit,
+        lote: novo.batchNumber || null,
+        data_validade: novo.expiryDate,
+        preco_custo_unitario: novo.costPerUnit,
+        tipo_armazenamento: novo.storageType,
+        limite_minimo_stock: 0,
+        prioridade_fefo: 'Normal',
+        fornecedor: novo.supplier || null,
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error || !registo) {
+      console.error('Erro ao criar artigo em stock:', error);
+      alert('Não foi possível gravar o artigo. Tenta novamente.');
+      return false;
+    }
+
+    const item: StockItem = {
+      id: registo.id,
+      code: registo.codigo ?? '',
+      name: registo.nome_produto ?? '',
+      category: (registo.categoria ?? 'Outros') as WasteCategory,
+      quantity: Number(registo.quantidade ?? 0),
+      unit: (registo.unidade_medida ?? 'kg') as StockItem['unit'],
+      batchNumber: registo.lote ?? '',
+      expiryDate: registo.data_validade ?? '',
+      costPerUnit: Number(registo.preco_custo_unitario ?? 0),
+      storageType: (registo.tipo_armazenamento ?? 'Refrigerado') as StockItem['storageType'],
+      minStockThreshold: Number(registo.limite_minimo_stock ?? 0),
+      fefoPriority: (registo.prioridade_fefo ?? 'Normal') as StockItem['fefoPriority'],
+      supplier: registo.fornecedor ?? undefined,
+    };
+    setStockItems((prev) => [item, ...prev]);
+
+    const { data: mov, error: movError } = await supabase
+      .from('stock_movements')
+      .insert({
+        stock_item_id: item.id,
+        nome_item: item.name,
+        tipo: 'Entrada',
+        quantidade: item.quantity,
+        unidade: item.unit,
+        data: new Date().toISOString(),
+        responsavel: `${responsavelNome} (Entrada manual)`,
+        motivo: 'Entrada manual de mercadoria',
+        organizacao_id: organizacao?.id ?? null,
+        registado_por: session?.user?.id ?? null,
+      })
+      .select()
+      .single();
+
+    if (movError) {
+      console.error('Erro ao gravar movimento de entrada:', movError);
+    } else if (mov) {
+      setStockMovements((prev) => [
+        {
+          id: mov.id,
+          stockItemId: mov.stock_item_id ?? '',
+          itemName: mov.nome_item ?? '',
+          type: (mov.tipo ?? 'Entrada') as StockMovement['type'],
+          quantity: Number(mov.quantidade ?? 0),
+          unit: mov.unidade ?? '',
+          date: mov.data ?? '',
+          responsible: mov.responsavel ?? '',
+          reason: mov.motivo ?? undefined,
+        },
+        ...prev,
+      ]);
+    }
+    return true;
   };
 
   const handleAddSupplier = async (newSupData: Omit<Supplier, 'id'>) => {
@@ -740,13 +843,13 @@ setWasteLogs(wasteLogsConvertidos);
         .from('fornecedores')
         .insert({
           nome: purchaseData.supplierName,
-          nif: purchaseData.nif || '500000000',
+          nif: purchaseData.nif || null,
           categoria: firstCat,
-          pessoa_contacto: 'Gestor Comercial',
-          telefone: '+351 910 000 000',
-          email: 'geral@fornecedor.pt',
+          pessoa_contacto: null,
+          telefone: null,
+          email: null,
           estado: 'Ativo',
-          avaliacao: 5.0,
+          avaliacao: null,
           organizacao_id: organizacao?.id ?? null,
           registado_por: session?.user?.id ?? null,
         })
@@ -760,13 +863,13 @@ setWasteLogs(wasteLogsConvertidos);
           {
             id: supRow.id,
             name: purchaseData.supplierName,
-            nif: purchaseData.nif || '500000000',
+            nif: purchaseData.nif || '',
             category: firstCat,
-            contactPerson: 'Gestor Comercial',
-            phone: '+351 910 000 000',
-            email: 'geral@fornecedor.pt',
+            contactPerson: '',
+            phone: '',
+            email: '',
             status: 'Ativo',
-            rating: 5.0
+            rating: undefined
           },
           ...prev
         ]);
@@ -1155,7 +1258,21 @@ const summaryMetrics: SummaryMetrics = {
   kgPerMeal,
   kgPerDayAvg,
   reductionGoalPercent: 25,
-  currentReductionPercent: 0,
+  // Redução face ao mês anterior completo (0 enquanto não houver dados do mês anterior)
+  currentReductionPercent: (() => {
+    const d = new Date();
+    const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    const prefix = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    const prevKg = wasteLogs
+      .filter((l) => (l.date || '').startsWith(prefix))
+      .reduce((t, l) => t + Number(l.quantity ?? 0), 0);
+    if (!(prevKg > 0)) return 0;
+    // compara a média diária deste mês com a média diária do mês anterior
+    const diasPrev = new Date(d.getFullYear(), d.getMonth(), 0).getDate();
+    const mediaPrev = prevKg / diasPrev;
+    const reducao = ((mediaPrev - kgPerDayAvg) / mediaPrev) * 100;
+    return Math.max(0, Math.round(reducao));
+  })(),
 };
     
   // Handlers que estavam em falta no ficheiro original
@@ -1330,6 +1447,7 @@ const summaryMetrics: SummaryMetrics = {
             stockItems={stockItems}
             stockMovements={stockMovements}
             onAddMovement={handleAddStockMovement}
+            onAddStockItem={handleAddStockItemManual}
             onOpenDonationModalWithItem={handleOpenDonationFromStock}
             onOpenInvoiceModal={() => setIsGlobalInvoiceModalOpen(true)}
           />
@@ -1383,6 +1501,8 @@ const summaryMetrics: SummaryMetrics = {
           <ReportsView
             metrics={summaryMetrics}
             wasteLogs={wasteLogs}
+            orgName={organizacao?.nome ?? ''}
+            orgNif={organizacao?.nif ?? ''}
           />
         )}
 
