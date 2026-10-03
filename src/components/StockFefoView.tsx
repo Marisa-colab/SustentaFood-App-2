@@ -264,7 +264,11 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
                     >
                       {/* Priority Badge */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        {isCritical ? (
+                        {daysLeft < 0 ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white font-bold text-[10px] shadow-sm">
+                            <AlertCircle className="w-3.5 h-3.5" /> VENCIDO — RETIRAR
+                          </span>
+                        ) : isCritical ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600 text-white font-bold text-[10px] shadow-sm animate-pulse">
                             <AlertCircle className="w-3.5 h-3.5" /> USAR PRIMEIRO
                           </span>
