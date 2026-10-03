@@ -200,9 +200,9 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
               </h2>
             </div>
             <p className="text-xs text-slate-400 max-w-2xl">
-              Sistema de Autocontrolo baseado nos princípios HACCP em conformidade com o{' '}
+              Apoio ao sistema de autocontrolo baseado nos princípios HACCP, de acordo com o{' '}
               <strong className="text-slate-200">Regulamento (CE) n.º 852/2004</strong>,{' '}
-              <strong className="text-slate-200">Decreto-Lei n.º 67/2014</strong> e normativas da{' '}
+              <strong className="text-slate-200">Decreto-Lei n.º 113/2006</strong> e normativas da{' '}
               <strong className="text-emerald-400">ASAE / DGAV</strong>.
             </p>
           </div>
@@ -305,7 +305,9 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
           <div>
             <span className="text-[11px] text-slate-400 uppercase font-medium">Higienização BPHF</span>
-            <div className="text-2xl font-bold text-emerald-400 mt-0.5">100% Inspecionada</div>
+            <div className="text-2xl font-bold text-emerald-400 mt-0.5">
+              {cleaningLogs.filter((c) => c.status !== 'Pendente').length} / {cleaningLogs.length} Concluídas
+            </div>
           </div>
           <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
             <Sparkles className="w-5 h-5" />
@@ -314,8 +316,8 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
           <div>
-            <span className="text-[11px] text-slate-400 uppercase font-medium">Conformidade ASAE/DGAV</span>
-            <div className="text-2xl font-bold text-amber-300 mt-0.5">Auditável / Aprovado</div>
+            <span className="text-[11px] text-slate-400 uppercase font-medium">Registos de Autocontrolo</span>
+            <div className="text-2xl font-bold text-amber-300 mt-0.5">Auditáveis</div>
           </div>
           <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-300 border border-amber-500/20">
             <Award className="w-5 h-5" />
@@ -565,12 +567,12 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
               </div>
             </div>
 
-            {/* Card 2: Decreto-Lei 67/2014 */}
+            {/* Card 2: Decreto-Lei 113/2006 */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 relative">
               <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center">
                 <ShieldCheck className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-white">Decreto-Lei n.º 67/2014</h3>
+              <h3 className="text-base font-bold text-white">Decreto-Lei n.º 113/2006</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
                 Legislação nacional portuguesa que assegura a execução e aplicação das normas comunitárias relativas à higiene dos géneros alimentícios, estabelecendo o regime sancionatório e competências de fiscalização da ASAE e DGAV.
               </p>
@@ -645,7 +647,7 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
                 <AlertOctagon className="w-5 h-5 text-rose-400" />
                 Registar Não Conformidade HACCP
               </h3>
-              <button onClick={() => setIsNcModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button type="button" aria-label="Fechar" onClick={() => setIsNcModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -776,7 +778,7 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
                 <Thermometer className="w-5 h-5 text-sky-400" />
                 Registar Medição de Temperatura
               </h3>
-              <button onClick={() => setIsTempModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button type="button" aria-label="Fechar" onClick={() => setIsTempModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -881,7 +883,7 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
                 <Sparkles className="w-5 h-5 text-emerald-400" />
                 Registar Ação de Higienização BPHF
               </h3>
-              <button onClick={() => setIsCleanModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button type="button" aria-label="Fechar" onClick={() => setIsCleanModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>

@@ -28,7 +28,7 @@ import {
   Cell
 } from 'recharts';
 import { WasteLog, SummaryMetrics, AlertItem } from '../types';
-import { topWastedProducts, sectorLossBreakdown, monthlyWasteTrend } from '../mockData';
+import { computeTopWastedProducts, computeSectorLossBreakdown, computeMonthlyWasteTrend } from '../wasteStats';
 
 interface DashboardViewProps {
   wasteLogs: WasteLog[];
@@ -69,6 +69,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const unreadAlerts = alerts.filter(a => !a.read);
 
+  // Dados reais calculados a partir dos registos de desperdício (sem valores de exemplo)
+  const topWastedProducts = computeTopWastedProducts(wasteLogs);
+  const sectorLossBreakdown = computeSectorLossBreakdown(wasteLogs);
+  const monthlyWasteTrend = computeMonthlyWasteTrend(wasteLogs);
+
+  // Variação de hoje face à média diária do mês (só se houver dados)
+  const dailyVariation =
+    metrics.kgPerDayAvg > 0
+      ? Math.round(((metrics.totalWasteKgToday - metrics.kgPerDayAvg) / metrics.kgPerDayAvg) * 100)
+      : null;
+
   return (
     <div className="space-[#121212] space-y-6 pb-12">
       {/* AI Highlight Banner (Requirement #11 & #12) */}
@@ -84,10 +95,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-400/30">
                   Previsão Preditiva de Desperdício (Gemini IA)
                 </span>
-                <span className="text-xs text-slate-400">Atualizado hoje</span>
+                {highlightPrediction && <span className="text-xs text-slate-400">Atualizado hoje</span>}
               </div>
               <p className="text-base sm:text-lg font-medium text-slate-100 mt-1">
-                "{highlightPrediction}"
+                {highlightPrediction
+                  ? `"${highlightPrediction}"`
+                  : 'Ainda não há previsão. Registe desperdício e stock, e abra "Previsões IA" para gerar a primeira análise.'}
               </p>
             </div>
           </div>
@@ -116,7 +129,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-xs font-medium text-slate-500">kg</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
-            <span className="text-emerald-600 font-semibold">-12%</span> vs. média diária
+            {dailyVariation === null ? (
+              <span>Sem dados suficientes para comparar</span>
+            ) : (
+              <>
+                <span className={`${dailyVariation <= 0 ? 'text-emerald-600' : 'text-rose-600'} font-semibold`}>
+                  {dailyVariation > 0 ? '+' : ''}{dailyVariation}%
+                </span>{' '}
+                vs. média diária
+              </>
+            )}
           </p>
         </div>
 
@@ -301,7 +323,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '12px' }}
                 />
                 <Area type="monotone" dataKey="kg" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#wasteGradient)" />
-                <Area type="monotone" dataKey="targetKg" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" fill="none" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -321,7 +342,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-2.5 max-h-[290px] overflow-y-auto pr-1 text-xs">
-              {topWastedProducts.slice(0, 7).map((item, idx) => (
+              {topWastedProducts.length === 0 && (
+                <p className="text-slate-400 text-center py-6">Ainda não há registos de desperdício.</p>
+              )}
+              {topWastedProducts.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-slate-100/80 transition-colors">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
@@ -333,7 +357,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="font-bold text-slate-900 block">{item.kg} kg</span>
+                    <span className="font-bold text-slate-900 block">{item.kg.toFixed(1)} kg</span>
                     <span className="text-[10px] text-rose-600 font-medium">{item.cost.toFixed(2)} €</span>
                   </div>
                 </div>
@@ -359,6 +383,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <p className="text-xs text-slate-500 mb-4">Onde ocorrem as maiores perdas financeiras na operação</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            {sectorLossBreakdown.length === 0 && (
+              <p className="text-slate-400 py-4 sm:col-span-2 text-center">Ainda não há perdas registadas.</p>
+            )}
             {sectorLossBreakdown.map((sector, idx) => (
               <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -366,7 +393,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span className="font-bold text-rose-600">{sector.lossCost.toFixed(2)} € ({sector.percent}%)</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-rose-500 h-1.5 rounded-full" style={{ width: `${sector.percent * 2}%` }} />
+                  <div className="bg-rose-500 h-1.5 rounded-full" style={{ width: `${Math.min(100, sector.percent)}%` }} />
                 </div>
                 <p className="text-[11px] text-slate-500 italic">
                   Causa: {sector.mainReason}

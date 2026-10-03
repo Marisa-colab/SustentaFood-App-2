@@ -24,7 +24,7 @@ import {
   Legend
 } from 'recharts';
 import { SummaryMetrics, WasteLog } from '../types';
-import { sectorLossBreakdown } from '../mockData';
+import { computeSectorLossBreakdown } from '../wasteStats';
 
 interface EconomicAnalysisViewProps {
   metrics: SummaryMetrics;
@@ -35,6 +35,7 @@ export const EconomicAnalysisView: React.FC<EconomicAnalysisViewProps> = ({
   metrics,
   wasteLogs
 }) => {
+  const sectorLossBreakdown = computeSectorLossBreakdown(wasteLogs);
   // Sample Example calculation state (User can try custom numbers in live calculator)
   const [calcKg, setCalcKg] = useState<number>(120);
   const [calcCostPerKg, setCalcCostPerKg] = useState<number>(12.00);
@@ -226,6 +227,9 @@ export const EconomicAnalysisView: React.FC<EconomicAnalysisViewProps> = ({
             <p className="text-xs text-slate-500 mb-4">Diagnóstico das origens de quebras de stocks e devoluções</p>
 
             <div className="space-y-3 text-xs">
+              {sectorLossBreakdown.length === 0 && (
+                <p className="text-center text-slate-400 py-3">Sem perdas registadas.</p>
+              )}
               {sectorLossBreakdown.map((sector, idx) => (
                 <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                   <div className="flex items-center justify-between font-bold text-slate-800">

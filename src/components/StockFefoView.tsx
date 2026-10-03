@@ -293,7 +293,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
                           {item.batchNumber || 'N/A'}
                         </span>
                         <span className="text-[11px] text-slate-500">
-                          {item.supplier || 'Fornecedor Certificado'}
+                          {item.supplier || 'Fornecedor não indicado'}
                         </span>
                       </td>
 
@@ -313,7 +313,11 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
                               : 'text-slate-500'
                           }`}
                         >
-                          {daysLeft <= 0 ? 'Venceu Hoje!' : `Faltam ${daysLeft} dias`}
+                          {daysLeft < 0
+                            ? `Vencido há ${Math.abs(daysLeft)} ${Math.abs(daysLeft) === 1 ? 'dia' : 'dias'}`
+                            : daysLeft === 0
+                            ? 'Vence hoje'
+                            : `Faltam ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'}`}
                         </span>
                       </td>
 
@@ -342,7 +346,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
                         >
                           Movimentar
                         </button>
-                        {onOpenDonationModalWithItem && isCritical && (
+                        {onOpenDonationModalWithItem && isCritical && daysLeft >= 0 && (
                           <button
                             onClick={() => onOpenDonationModalWithItem(item.name, item.category, item.quantity)}
                             className="px-2.5 py-1 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-500 transition-colors text-[11px]"

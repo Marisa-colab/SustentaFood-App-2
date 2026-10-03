@@ -309,7 +309,7 @@ export const WasteLogView: React.FC<WasteLogViewProps> = ({
 
                     {/* Delete action */}
                     <td className="px-4 py-3.5 text-center">
-                      <button
+                      <button type="button" aria-label="Eliminar registo"
                         onClick={() => onDeleteLog(log.id)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                         title="Eliminar registo"

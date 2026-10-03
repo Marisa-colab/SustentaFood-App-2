@@ -291,7 +291,7 @@ export const InvoiceUploadModal: React.FC<InvoiceUploadModalProps> = ({
               </p>
             </div>
           </div>
-          <button
+          <button type="button" aria-label="Fechar"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
           >
@@ -625,7 +625,7 @@ export const InvoiceUploadModal: React.FC<InvoiceUploadModalProps> = ({
 
                   {/* Remove Button */}
                   <div className="md:col-span-1 flex justify-end">
-                    <button
+                    <button type="button" aria-label="Remover linha"
                       type="button"
                       onClick={() => removeItemRow(idx)}
                       disabled={items.length <= 1}

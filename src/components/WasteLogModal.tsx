@@ -118,7 +118,7 @@ export const WasteLogModal: React.FC<WasteLogModalProps> = ({
               <p className="text-xs text-slate-400">Introduza os dados para registo, controlo financeiro e pegada de CO₂</p>
             </div>
           </div>
-          <button
+          <button type="button" aria-label="Fechar"
             onClick={onClose}
             className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
           >

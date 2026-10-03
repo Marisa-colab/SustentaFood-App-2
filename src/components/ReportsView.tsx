@@ -11,7 +11,7 @@ import {
   Scale
 } from 'lucide-react';
 import { WasteLog, SummaryMetrics } from '../types';
-import { monthlyWasteTrend, topWastedProducts, sectorLossBreakdown } from '../mockData';
+import { computeTopWastedProducts, computeSectorLossBreakdown } from '../wasteStats';
 
 interface ReportsViewProps {
   metrics: SummaryMetrics;
@@ -22,6 +22,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   metrics,
   wasteLogs
 }) => {
+  const topWastedProducts = computeTopWastedProducts(wasteLogs, 5);
+  const sectorLossBreakdown = computeSectorLossBreakdown(wasteLogs);
+
     const monthOptions = React.useMemo(() => {
     const nomesMeses = [
       'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -167,11 +170,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y text-slate-800">
-              {topWastedProducts.slice(0, 5).map((p, idx) => (
+              {topWastedProducts.length === 0 && (
+                <tr><td colSpan={4} className="p-3 text-center text-slate-400">Sem registos de desperdício.</td></tr>
+              )}
+              {topWastedProducts.map((p, idx) => (
                 <tr key={idx}>
                   <td className="p-2.5 font-medium">{p.name}</td>
                   <td className="p-2.5">{p.category}</td>
-                  <td className="p-2.5 text-right font-bold">{p.kg} kg</td>
+                  <td className="p-2.5 text-right font-bold">{p.kg.toFixed(1)} kg</td>
                   <td className="p-2.5 text-right font-bold text-rose-600">{p.cost.toFixed(2)} €</td>
                 </tr>
               ))}
@@ -183,6 +189,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="space-y-2 text-xs">
           <h3 className="font-bold text-slate-900 text-sm">Distribuição das Perdas por Setor</h3>
           <div className="grid grid-cols-2 gap-3">
+            {sectorLossBreakdown.length === 0 && (
+              <p className="col-span-2 text-center text-slate-400 py-3">Sem perdas registadas.</p>
+            )}
             {sectorLossBreakdown.map((s, idx) => (
               <div key={idx} className="p-3 bg-slate-50 rounded-xl border flex justify-between items-center">
                 <div>

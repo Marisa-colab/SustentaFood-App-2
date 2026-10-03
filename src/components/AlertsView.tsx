@@ -99,7 +99,7 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
                   </button>
                 )}
                 {!alert.read && (
-                  <button
+                  <button type="button" aria-label="Marcar como lido"
                     onClick={() => onMarkAsRead(alert.id)}
                     className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors"
                     title="Marcar como lido"

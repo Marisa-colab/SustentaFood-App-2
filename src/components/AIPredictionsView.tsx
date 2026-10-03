@@ -40,7 +40,7 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [expectedDiners, setExpectedDiners] = useState<number>(280);
-  const [upcomingEmenta, setUpcomingEmenta] = useState<string>('Bacalhau à Brás e Sopa de Legumes');
+  const [upcomingEmenta, setUpcomingEmenta] = useState<string>('');
 
   // Custom API key override state for easy testing
   const [customKey, setCustomKey] = useState<string>('');
@@ -51,44 +51,7 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
   const [apiError, setApiError] = useState<APIErrorDetails | null>(null);
   const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(false);
 
-  // Default fallback AI Data
-  const defaultAiData: AIPredictionData = {
-    highlightPrediction: highlightPrediction || 'Para amanhã prevê-se um excedente de 25 kg de sopa devido à baixa procura das últimas 4 semanas.',
-    wasteRiskScore: 35,
-    forecastInsights: [
-      {
-        title: 'Excedente Previsto de Sopa de Legumes',
-        category: 'Refeições Confecionadas',
-        riskLevel: 'Elevado',
-        predictedExcessKg: 25,
-        recommendation: 'Reduzir a produção da caldeira principal em 25 kg e redirecionar vegetais para acompanhamento grelhado.'
-      },
-      {
-        title: 'Risco de Expiração em Filetes de Pescada',
-        category: 'Peixe',
-        riskLevel: 'Elevado',
-        predictedExcessKg: 18,
-        recommendation: 'Aproveitar lote de peixe em stock FEFO para o prato do dia de hoje.'
-      }
-    ],
-    procurementAdvice: [
-      {
-        item: 'Maçã Alcobaça',
-        action: 'Reduzir Encomenda',
-        suggestedQtyKg: 20,
-        reasoning: 'Existe stock excedente de 85 kg em armazém com rotação lenta.'
-      },
-      {
-        item: 'Peito de Frango',
-        action: 'Manter',
-        suggestedQtyKg: 35,
-        reasoning: 'Procura estável ajustada ao número de refeições do próximo evento.'
-      }
-    ],
-    haccpTip: 'Em dias de temperatura elevada, assegurar arrefecimento rápido da sopa em célula de abatimento em menos de 2 horas (de +65ºC para +10ºC).'
-  };
-
-  const [aiData, setAiData] = useState<AIPredictionData | null>(defaultAiData);
+  const [aiData, setAiData] = useState<AIPredictionData | null>(null);
 
   // Chat messages state
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'bot'; text: string; isError?: boolean }>>([
@@ -292,9 +255,6 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       setIsSimulatedMode(true);
 
       // Keep present UI data or fallback gracefully so UI does NOT crash
-      if (!aiData) {
-        setAiData(defaultAiData);
-      }
     } finally {
       setLoading(false);
     }
@@ -383,7 +343,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
                 </span>
                 {isSimulatedMode && (
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-medium">
-                    Modo Assistido Local
+                    Simulação sem IA — valores ilustrativos
                   </span>
                 )}
               </div>
@@ -394,7 +354,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
           </div>
 
           <div className="flex items-center gap-2 flex-wrap self-end md:self-auto">
-            <button
+            <button type="button" aria-label="Definições e diagnóstico da IA"
               onClick={() => setShowSettings(!showSettings)}
               className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition cursor-pointer"
               title="Definições e diagnóstico da IA"
@@ -568,6 +528,19 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       </div>
 
       {/* Main Prediction Results */}
+      {!aiData && (
+        <div className="bg-white rounded-2xl p-6 border border-dashed border-slate-300 text-center text-sm text-slate-500">
+          Ainda não foi gerada nenhuma previsão. Indique as refeições e a ementa prevista e carregue em
+          <strong className="text-slate-700"> "Atualizar Previsão Preditiva"</strong>. A análise usa apenas os registos de
+          desperdício e o stock desta organização.
+        </div>
+      )}
+      {aiData && isSimulatedMode && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-xs">
+          Atenção: a IA não está disponível neste momento. Os valores abaixo são uma simulação ilustrativa e não
+          resultam dos seus dados.
+        </div>
+      )}
       {aiData && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Highlight Prediction Box */}

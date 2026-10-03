@@ -214,7 +214,7 @@ export const DonationView: React.FC<DonationViewProps> = ({
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="font-bold text-slate-900 text-base">Registar Nova Doação de Excedentes</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button type="button" aria-label="Fechar" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
