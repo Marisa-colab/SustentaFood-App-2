@@ -1065,7 +1065,11 @@ setWasteLogs(wasteLogsConvertidos);
           title: dias < 0 ? 'Produto com validade ultrapassada' : 'Aviso FEFO: Validade Próxima',
           message: `${item.name} (${item.quantity} ${item.unit}${
             item.batchNumber ? `, lote ${item.batchNumber}` : ''
-          }) ${quando} (${item.expiryDate}). Dar prioridade na cozinha, promover na ementa ou doar.`,
+          }) ${quando} (${item.expiryDate}). ${
+            dias < 0
+              ? 'Retirar de uso e registar como desperdício. Não pode ser consumido nem doado.'
+              : 'Dar prioridade na cozinha, promover na ementa ou doar.'
+          }`,
           date: hojeStr,
           read: lidos.has(id),
           relatedCategory: item.category,
