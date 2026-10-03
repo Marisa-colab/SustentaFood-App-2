@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getCurrentUserName } from '../currentUser';
 import {
   HeartHandshake,
   Plus,
@@ -29,20 +30,20 @@ export const DonationView: React.FC<DonationViewProps> = ({
   const [selectedCertificate, setSelectedCertificate] = useState<DonationLog | null>(null);
 
   // Form State
-  const [institutionName, setInstitutionName] = useState('Refood - Núcleo Local');
-  const [nif, setNif] = useState('509123456');
-  const [contactPerson, setContactPerson] = useState('Paula Guimarães');
-  const [responsible, setResponsible] = useState('Maria Santos (Resp. Buffet)');
-  const [notes, setNotes] = useState('Alimentos mantidos sob controlo térmico conforme normas de segurança alimentar.');
+  const [institutionName, setInstitutionName] = useState('');
+  const [nif, setNif] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
+  const [responsible, setResponsible] = useState(getCurrentUserName());
+  const [notes, setNotes] = useState('');
 
   // Items in donation form
   const [items, setItems] = useState<DonationItem[]>([
     {
-      name: prefillItem ? prefillItem.name : 'Sopa de Legumes Fresca (excedente seguro)',
+      name: prefillItem ? prefillItem.name : '',
       category: prefillItem ? prefillItem.category : 'Refeições Confecionadas',
-      quantity: prefillItem ? prefillItem.quantity : 15,
+      quantity: prefillItem ? prefillItem.quantity : 0,
       unit: 'kg',
-      estimatedValue: 35.00
+      estimatedValue: 0
     }
   ]);
 
@@ -64,6 +65,14 @@ export const DonationView: React.FC<DonationViewProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!institutionName.trim() || items.length === 0) return;
+    if (items.some((i) => !i.name.trim() || !(i.quantity > 0))) {
+      alert('Indique o nome e a quantidade de cada alimento a doar.');
+      return;
+    }
+    if (!responsible.trim()) {
+      alert('Indique o responsável pela doação.');
+      return;
+    }
 
     const certCode = `CERT-DOA-${Date.now().toString().slice(-6)}`;
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getCurrentUserName } from '../currentUser';
 import { X, Plus, Calculator, Info, Sparkles } from 'lucide-react';
 import { WasteLog, WasteCategory, WasteType, ProductionLocation } from '../types';
 import { CO2_FACTORS } from '../mockData';
@@ -50,11 +51,11 @@ export const WasteLogModal: React.FC<WasteLogModalProps> = ({
   const [item, setItem] = useState('');
   const [category, setCategory] = useState<WasteCategory>('Refeições Confecionadas');
   const [type, setType] = useState<WasteType>('Sobras de refeições');
-  const [quantity, setQuantity] = useState<number>(5);
+  const [quantity, setQuantity] = useState<number>(0);
   const [unit, setUnit] = useState<'kg' | 'L'>('kg');
-  const [costPerUnit, setCostPerUnit] = useState<number>(4.50);
+  const [costPerUnit, setCostPerUnit] = useState<number>(0);
   const [location, setLocation] = useState<ProductionLocation>('Empratamento / Buffet');
-  const [responsible, setResponsible] = useState('João Silva (Chef)');
+  const [responsible, setResponsible] = useState(getCurrentUserName());
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState(defaultTime);
@@ -83,7 +84,18 @@ export const WasteLogModal: React.FC<WasteLogModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!item.trim() || quantity <= 0) return;
+    if (!item.trim()) {
+      alert('Indique o nome do alimento ou produto.');
+      return;
+    }
+    if (!(quantity > 0)) {
+      alert('Indique a quantidade desperdiçada (maior que zero).');
+      return;
+    }
+    if (!responsible.trim()) {
+      alert('Indique o responsável pelo registo.');
+      return;
+    }
 
     onAddWasteLog({
       item: item.trim(),

@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-950/60 border border-indigo-700/50 text-indigo-200 text-xs hover:bg-indigo-900/80 transition-colors"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-spin" style={{ animationDuration: '4s' }} />
-            <span>Gemini 3.6 IA Ativa</span>
+            <span>Assistente IA</span>
           </button>
 
           {/* Notifications Button */}

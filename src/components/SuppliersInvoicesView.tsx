@@ -66,8 +66,8 @@ export const SuppliersInvoicesView: React.FC<SuppliersInvoicesViewProps> = ({
   const filteredSuppliers = suppliers.filter((sup) => {
     const matchesSearch =
       sup.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sup.nif.includes(searchQuery) ||
-      sup.contactPerson.toLowerCase().includes(searchQuery.toLowerCase());
+      (sup.nif || '').includes(searchQuery) ||
+      (sup.contactPerson || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCat = categoryFilter === 'all' || sup.category === categoryFilter;
     return matchesSearch && matchesCat;
   });
@@ -88,14 +88,14 @@ export const SuppliersInvoicesView: React.FC<SuppliersInvoicesViewProps> = ({
 
     onAddSupplier({
       name: newSupName.trim(),
-      nif: newSupNif.trim() || '500000000',
+      nif: newSupNif.trim(),
       category: newSupCategory,
-      contactPerson: newSupContact.trim() || 'Não especificado',
-      phone: newSupPhone.trim() || '+351 900 000 000',
-      email: newSupEmail.trim() || 'fornecedor@email.pt',
-      address: newSupAddress.trim() || 'Portugal',
+      contactPerson: newSupContact.trim(),
+      phone: newSupPhone.trim(),
+      email: newSupEmail.trim(),
+      address: newSupAddress.trim(),
       status: 'Ativo',
-      rating: 5.0
+      rating: undefined
     });
 
     setNewSupName('');
@@ -233,7 +233,7 @@ export const SuppliersInvoicesView: React.FC<SuppliersInvoicesViewProps> = ({
                       {sup.category}
                     </span>
                     <h3 className="text-base font-bold text-white mt-1.5">{sup.name}</h3>
-                    <p className="text-xs text-slate-400 font-mono">NIF: {sup.nif}</p>
+                    <p className="text-xs text-slate-400 font-mono">NIF: {sup.nif || 'não indicado'}</p>
                   </div>
 
                   <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
@@ -245,15 +245,15 @@ export const SuppliersInvoicesView: React.FC<SuppliersInvoicesViewProps> = ({
                 <div className="space-y-2 py-3 border-y border-slate-800/80 text-xs text-slate-300">
                   <div className="flex items-center gap-2">
                     <User className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Contacto: <strong>{sup.contactPerson}</strong></span>
+                    <span>Contacto: <strong>{sup.contactPerson || 'não indicado'}</strong></span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{sup.phone}</span>
+                    <span>{sup.phone || 'Telefone não indicado'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="truncate">{sup.email}</span>
+                    <span className="truncate">{sup.email || 'Email não indicado'}</span>
                   </div>
                   {sup.address && (
                     <div className="flex items-center gap-2">
@@ -266,7 +266,7 @@ export const SuppliersInvoicesView: React.FC<SuppliersInvoicesViewProps> = ({
 
               <div className="mt-4 pt-2 flex items-center justify-between text-xs">
                 <span className="text-slate-400">
-                  Classificação: <strong className="text-amber-400">★ {sup.rating || 4.8}</strong>
+                  Classificação: <strong className="text-amber-400">{sup.rating ? `★ ${sup.rating}` : 'Sem avaliação'}</strong>
                 </span>
                 <button
                   onClick={() => {

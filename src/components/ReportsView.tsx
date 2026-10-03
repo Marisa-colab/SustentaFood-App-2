@@ -11,19 +11,21 @@ import {
   Scale
 } from 'lucide-react';
 import { WasteLog, SummaryMetrics } from '../types';
-import { computeTopWastedProducts, computeSectorLossBreakdown } from '../wasteStats';
+import { computeTopWastedProducts, computeSectorLossBreakdown, computeMonthTotals, percentChange } from '../wasteStats';
 
 interface ReportsViewProps {
   metrics: SummaryMetrics;
   wasteLogs: WasteLog[];
+  orgName?: string;
+  orgNif?: string;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
   metrics,
-  wasteLogs
+  wasteLogs: allWasteLogs,
+  orgName = '',
+  orgNif = ''
 }) => {
-  const topWastedProducts = computeTopWastedProducts(wasteLogs, 5);
-  const sectorLossBreakdown = computeSectorLossBreakdown(wasteLogs);
 
     const monthOptions = React.useMemo(() => {
     const nomesMeses = [
@@ -40,6 +42,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   }, []);
 
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]);
+
+  // Dados do mês escolhido e do mês anterior (para comparação)
+  const selIndex = Math.max(0, monthOptions.indexOf(selectedMonth));
+  const hojeRef = new Date();
+  const selDate = new Date(hojeRef.getFullYear(), hojeRef.getMonth() - selIndex, 1);
+  const prevDate = new Date(selDate.getFullYear(), selDate.getMonth() - 1, 1);
+  const mesSel = computeMonthTotals(allWasteLogs, selDate.getFullYear(), selDate.getMonth());
+  const mesAnt = computeMonthTotals(allWasteLogs, prevDate.getFullYear(), prevDate.getMonth());
+  const wasteLogs = mesSel.logs;
+  const variacaoKg = percentChange(mesSel.kg, mesAnt.kg);
+  const diasNoPeriodo =
+    selIndex === 0
+      ? hojeRef.getDate()
+      : new Date(selDate.getFullYear(), selDate.getMonth() + 1, 0).getDate();
+  const topWastedProducts = computeTopWastedProducts(wasteLogs, 5);
+  const sectorLossBreakdown = computeSectorLossBreakdown(wasteLogs);
   // Export CSV
   const handleExportExcel = () => {
     const headers = ['ID', 'Data', 'Hora', 'Alimento', 'Categoria', 'Tipo', 'Quantidade', 'Unidade', 'Custo Total (€)', 'CO2e (kg)', 'Local', 'Responsavel'];
@@ -125,8 +143,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <p className="text-xs text-slate-500 mt-1">Período de Análise: {selectedMonth} | Emissor: Sistema Automático SustentaFood</p>
           </div>
           <div className="text-right text-xs">
-            <span className="font-bold block text-slate-800">Estabelecimento: Cozinha Central SustentaFood</span>
-            <span className="text-slate-500">NIF: 501234567</span>
+            <span className="font-bold block text-slate-800">Estabelecimento: {orgName || '—'}</span>
+            <span className="text-slate-500">NIF: {orgNif || 'não indicado'}</span>
           </div>
         </div>
 
@@ -134,26 +152,32 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 font-medium block uppercase text-[10px]">Volume Total de Resíduos</span>
-            <div className="text-xl font-extrabold text-slate-900 mt-0.5">{metrics.totalWasteKgMonth} kg</div>
-            <span className="text-[10px] text-emerald-600 font-semibold">-9.2% vs. mês anterior</span>
+            <div className="text-xl font-extrabold text-slate-900 mt-0.5">{mesSel.kg.toFixed(1)} kg</div>
+            <span className={`text-[10px] font-semibold ${variacaoKg === null ? 'text-slate-500' : variacaoKg <= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {variacaoKg === null ? 'Sem dados do mês anterior' : `${variacaoKg > 0 ? '+' : ''}${variacaoKg}% vs. mês anterior`}
+            </span>
           </div>
 
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 font-medium block uppercase text-[10px]">Perda Económica Total</span>
-            <div className="text-xl font-extrabold text-rose-600 mt-0.5">{metrics.totalCostLostMonth.toFixed(2)} €</div>
-            <span className="text-[10px] text-slate-500">Média: {(metrics.totalCostLostMonth / 30).toFixed(2)} €/dia</span>
+            <div className="text-xl font-extrabold text-rose-600 mt-0.5">{mesSel.cost.toFixed(2)} €</div>
+            <span className="text-[10px] text-slate-500">Média: {(mesSel.cost / diasNoPeriodo).toFixed(2)} €/dia</span>
           </div>
 
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 font-medium block uppercase text-[10px]">Emissões CO₂e Geradas</span>
-            <div className="text-xl font-extrabold text-emerald-700 mt-0.5">{metrics.totalCo2eKgMonth.toFixed(0)} kg CO₂e</div>
+            <div className="text-xl font-extrabold text-emerald-700 mt-0.5">{mesSel.co2.toFixed(0)} kg CO₂e</div>
             <span className="text-[10px] text-slate-500">Fator de emissão médio</span>
           </div>
 
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 font-medium block uppercase text-[10px]">Desperdício / Refeição</span>
-            <div className="text-xl font-extrabold text-indigo-700 mt-0.5">{(metrics.kgPerMeal * 1000).toFixed(0)} g</div>
-            <span className="text-[10px] text-slate-500">{metrics.mealsServedMonth} refeições servidas</span>
+            <div className="text-xl font-extrabold text-indigo-700 mt-0.5">
+              {metrics.mealsServedMonth > 0 ? `${(metrics.kgPerMeal * 1000).toFixed(0)} g` : '—'}
+            </div>
+            <span className="text-[10px] text-slate-500">
+              {metrics.mealsServedMonth > 0 ? `${metrics.mealsServedMonth} refeições servidas` : 'Refeições servidas não registadas'}
+            </span>
           </div>
         </div>
 
@@ -208,9 +232,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
         {/* Conclusion / Audit Notes */}
         <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-950 text-xs space-y-1">
-          <span className="font-bold text-emerald-900 block">Conclusão e Parecer do Sistema SustentaFood</span>
+          <span className="font-bold text-emerald-900 block">Resumo do Período</span>
           <p className="leading-relaxed">
-            Relatório gerado em conformidade com as metas de economia circular e redução de pegada ecológica. A implementação do plano FEFO e doações permitiu desviar 100% dos excedentes seguros da via do aterro sanitário.
+            {wasteLogs.length === 0
+              ? 'Não há registos de desperdício neste período.'
+              : `Neste período foram registados ${wasteLogs.length} ${wasteLogs.length === 1 ? 'registo' : 'registos'} de desperdício, num total de ${mesSel.kg.toFixed(1)} kg e ${mesSel.cost.toFixed(2)} € de perda. ${
+                  variacaoKg === null
+                    ? 'Ainda não há dados do mês anterior para comparação.'
+                    : variacaoKg <= 0
+                    ? `O volume desceu ${Math.abs(variacaoKg)}% face ao mês anterior.`
+                    : `O volume subiu ${variacaoKg}% face ao mês anterior.`
+                } Valores calculados a partir dos registos introduzidos pelo estabelecimento.`}
           </p>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getCurrentUserName } from '../currentUser';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -58,10 +59,10 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
   const [isCleanModalOpen, setIsCleanModalOpen] = useState(false);
 
   // NC Form
-  const [productName, setProductName] = useState('Salmão Inteiro Fresco');
-  const [batchNumber, setBatchNumber] = useState('LOTE-SAL-2026-081');
-  const [supplier, setSupplier] = useState('Lota de Peniche / Mariscos Lda');
-  const [quantityKg, setQuantityKg] = useState<number>(10);
+  const [productName, setProductName] = useState('');
+  const [batchNumber, setBatchNumber] = useState('');
+  const [supplier, setSupplier] = useState('');
+  const [quantityKg, setQuantityKg] = useState<number>(0);
   const [rejectionReason, setRejectionReason] = useState<
     | 'Quebra de Temperatura'
     | 'Prazo Excedido'
@@ -70,26 +71,24 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
     | 'Contaminação Cruzada'
     | 'Outro'
   >('Quebra de Temperatura');
-  const [temperatureLogged, setTemperatureLogged] = useState<number>(8.8);
-  const [correctiveAction, setCorrectiveAction] = useState(
-    'Produto rejeitado na receção. Devolução ao fornecedor com emissão de guia de não conformidade.'
-  );
-  const [responsible, setResponsible] = useState(
-    'João Silva (Responsável HACCP)'
-  );
+  const [temperatureLogged, setTemperatureLogged] = useState<number>(0);
+  const [correctiveAction, setCorrectiveAction] = useState('');
+  const [responsible, setResponsible] = useState(getCurrentUserName());
 
   // Temp Form
-  const [tempEquip, setTempEquip] = useState('Câmara Frigorífica de Peixe (CF-02)');
-  const [tempLocation, setTempLocation] = useState('Cozinha Central');
-  const [tempTarget, setTempTarget] = useState('0ºC a 2ºC');
-  const [tempMeasured, setTempMeasured] = useState<number>(1.8);
+  const [tempEquip, setTempEquip] = useState('');
+  const [tempLocation, setTempLocation] = useState('');
+  // Intervalo alvo em valores numéricos (mínimo e/ou máximo), para avaliar a conformidade
+  const [tempMin, setTempMin] = useState<string>('0');
+  const [tempMax, setTempMax] = useState<string>('5');
+  const [tempMeasured, setTempMeasured] = useState<string>('');
   const [tempShift, setTempShift] = useState<'Manhã' | 'Tarde' | 'Noite'>('Manhã');
   const [tempAction, setTempAction] = useState('');
 
   // Clean Form
-  const [cleanArea, setCleanArea] = useState('Bancadas e Equipamentos de Confeção');
+  const [cleanArea, setCleanArea] = useState('');
   const [cleanFreq, setCleanFreq] = useState<'Diária' | 'Semanal' | 'Quinzenal' | 'Mensal'>('Diária');
-  const [cleanDetergent, setCleanDetergent] = useState('Detergente Desinfetante Clorado Biocida TP4');
+  const [cleanDetergent, setCleanDetergent] = useState('');
 
   // NC Filter
   const filteredNcLogs = haccpLogs.filter(
@@ -116,10 +115,40 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
       log.responsible.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Avaliação da temperatura face ao intervalo alvo (null = dados insuficientes)
+  const parseNum = (v: string) => (v.trim() === '' || isNaN(Number(v)) ? null : Number(v));
+  const tMin = parseNum(tempMin);
+  const tMax = parseNum(tempMax);
+  const tMeasured = parseNum(tempMeasured);
+  const tempEval: boolean | null =
+    tMeasured === null || (tMin === null && tMax === null)
+      ? null
+      : (tMin === null || tMeasured >= tMin) && (tMax === null || tMeasured <= tMax);
+  const tempRangeLabel =
+    tMin !== null && tMax !== null
+      ? `${tMin}ºC a ${tMax}ºC`
+      : tMin !== null
+      ? `≥ ${tMin}ºC`
+      : tMax !== null
+      ? `≤ ${tMax}ºC`
+      : '';
+  const applyTempPreset = (min: string, max: string) => {
+    setTempMin(min);
+    setTempMax(max);
+  };
+
   // Handlers
   const handleNcSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productName.trim() || quantityKg <= 0) return;
+    if (!productName.trim()) return;
+    if (!(quantityKg > 0)) {
+      alert('Indique a quantidade rejeitada (maior que zero).');
+      return;
+    }
+    if (!correctiveAction.trim() || !responsible.trim()) {
+      alert('Indique a ação corretiva e o responsável.');
+      return;
+    }
 
     const ncCode = `NC-${new Date().getFullYear()}-${Math.floor(
       100 + Math.random() * 900
@@ -148,36 +177,53 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
     e.preventDefault();
     if (!onAddTemperatureLog) return;
 
-    // Determine status automatically based on temp thresholds if applicable
-    const isOk = tempMeasured <= 5;
+    if (tempEval === null) {
+      alert('Indique a temperatura medida e pelo menos um limite do intervalo alvo.');
+      return;
+    }
+    const isOk = tempEval;
+    if (!isOk && !tempAction.trim()) {
+      alert('A temperatura está fora do intervalo. Descreva a ação corretiva tomada.');
+      return;
+    }
+    if (!responsible.trim()) {
+      alert('Indique o responsável pela medição.');
+      return;
+    }
 
     onAddTemperatureLog({
-      equipmentName: tempEquip,
-      location: tempLocation,
-      targetTempRange: tempTarget,
-      measuredTemp: tempMeasured,
+      equipmentName: tempEquip.trim(),
+      location: tempLocation.trim(),
+      targetTempRange: tempRangeLabel,
+      measuredTemp: Number(tempMeasured),
       date: new Date().toISOString().split('T')[0],
       time: new Date().toTimeString().slice(0, 5),
       shift: tempShift,
       status: isOk ? 'Conforme' : 'Não Conforme',
-      correctiveAction: !isOk ? tempAction || 'Ajuste de termostato' : undefined,
-      responsible
+      correctiveAction: !isOk ? tempAction.trim() : undefined,
+      responsible: responsible.trim()
     });
 
     setIsTempModalOpen(false);
+    setTempMeasured('');
+    setTempAction('');
   };
 
   const handleCleanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!onAddCleaningLog) return;
+    if (!cleanArea.trim() || !responsible.trim()) {
+      alert('Indique a área ou equipamento e o responsável.');
+      return;
+    }
 
     onAddCleaningLog({
       areaOrEquipment: cleanArea,
       frequency: cleanFreq,
       detergentUsed: cleanDetergent,
       date: new Date().toISOString().split('T')[0],
-      status: 'Inspecionado',
-      responsible
+      status: 'Concluído',
+      responsible: responsible.trim()
     });
 
     setIsCleanModalOpen(false);
@@ -820,29 +866,72 @@ export const HaccpView: React.FC<HaccpViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Intervalo Alvo</label>
-                  <input
-                    type="text"
-                    value={tempTarget}
-                    onChange={(e) => setTempTarget(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 text-white px-2 py-1.5 rounded"
-                  />
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="text-slate-400 font-semibold mr-1 self-center">Intervalo alvo:</span>
+                  <button type="button" onClick={() => applyTempPreset('0', '5')} className="px-2 py-1 rounded bg-slate-800 text-slate-200 hover:bg-slate-700">Refrigeração 0 a 5ºC</button>
+                  <button type="button" onClick={() => applyTempPreset('0', '2')} className="px-2 py-1 rounded bg-slate-800 text-slate-200 hover:bg-slate-700">Peixe fresco 0 a 2ºC</button>
+                  <button type="button" onClick={() => applyTempPreset('', '-18')} className="px-2 py-1 rounded bg-slate-800 text-slate-200 hover:bg-slate-700">Congelação ≤ -18ºC</button>
+                  <button type="button" onClick={() => applyTempPreset('65', '')} className="px-2 py-1 rounded bg-slate-800 text-slate-200 hover:bg-slate-700">Quente ≥ 65ºC</button>
                 </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Temperatura (ºC) *</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    required
-                    value={tempMeasured}
-                    onChange={(e) => setTempMeasured(Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-sky-500 text-sky-300 font-bold px-2 py-1.5 rounded"
-                  />
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1" htmlFor="temp-min">Mínimo (ºC)</label>
+                    <input
+                      id="temp-min"
+                      type="number"
+                      step="0.1"
+                      value={tempMin}
+                      onChange={(e) => setTempMin(e.target.value)}
+                      placeholder="sem mínimo"
+                      className="w-full bg-slate-800 border border-slate-700 text-white px-2 py-1.5 rounded"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1" htmlFor="temp-max">Máximo (ºC)</label>
+                    <input
+                      id="temp-max"
+                      type="number"
+                      step="0.1"
+                      value={tempMax}
+                      onChange={(e) => setTempMax(e.target.value)}
+                      placeholder="sem máximo"
+                      className="w-full bg-slate-800 border border-slate-700 text-white px-2 py-1.5 rounded"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1" htmlFor="temp-med">Medida (ºC) *</label>
+                    <input
+                      id="temp-med"
+                      type="number"
+                      step="0.1"
+                      required
+                      value={tempMeasured}
+                      onChange={(e) => setTempMeasured(e.target.value)}
+                      className="w-full bg-slate-800 border border-sky-500 text-sky-300 font-bold px-2 py-1.5 rounded"
+                    />
+                  </div>
                 </div>
+                {tempEval !== null && (
+                  <p className={`font-bold ${tempEval ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {tempEval ? `Conforme (${tempRangeLabel})` : `Não conforme — fora de ${tempRangeLabel}`}
+                  </p>
+                )}
               </div>
+
+              {tempEval === false && (
+                <div>
+                  <label className="block font-semibold text-rose-300 mb-1" htmlFor="temp-acao">Ação corretiva tomada *</label>
+                  <textarea
+                    id="temp-acao"
+                    rows={2}
+                    value={tempAction}
+                    onChange={(e) => setTempAction(e.target.value)}
+                    placeholder="Ex.: produto transferido para outra câmara, técnico de frio contactado, nova medição às 16h..."
+                    className="w-full bg-slate-800 border border-rose-500/60 text-white px-3 py-2 rounded-xl"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block font-semibold text-slate-300 mb-1">Responsável pela Medição</label>

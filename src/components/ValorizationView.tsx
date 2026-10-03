@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getCurrentUserName } from '../currentUser';
 import {
   Recycle,
   Plus,
@@ -25,17 +26,24 @@ export const ValorizationView: React.FC<ValorizationViewProps> = ({
   const [destination, setDestination] = useState<
     'Compostagem' | 'Alimentação Animal' | 'Biogás / Bioenergia' | 'Reciclagem de Óleos (OAU)' | 'Outro'
   >('Compostagem');
-  const [quantityKg, setQuantityKg] = useState<number>(50);
-  const [partnerEntity, setPartnerEntity] = useState('Horta Comunitária Urbana');
-  const [responsible, setResponsible] = useState('António Costa (Sous-Chef)');
-  const [notes, setNotes] = useState('Borras de café e cascas de fruta enviadas para compostagem orgânica.');
+  const [quantityKg, setQuantityKg] = useState<number>(0);
+  const [partnerEntity, setPartnerEntity] = useState('');
+  const [responsible, setResponsible] = useState(getCurrentUserName());
+  const [notes, setNotes] = useState('');
 
   const totalKg = valorizationLogs.reduce((acc, curr) => acc + curr.quantityKg, 0);
   const totalCo2Saved = valorizationLogs.reduce((acc, curr) => acc + curr.co2SavedKg, 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (quantityKg <= 0) return;
+    if (!(quantityKg > 0)) {
+      alert('Indique a quantidade em kg (maior que zero).');
+      return;
+    }
+    if (!responsible.trim()) {
+      alert('Indique o responsável pelo registo.');
+      return;
+    }
 
     // CO2 saved factor (e.g., 1.1 kg CO2 avoided per kg composted)
     const co2Factor = destination === 'Reciclagem de Óleos (OAU)' ? 3.0 : 1.1;
@@ -83,7 +91,7 @@ export const ValorizationView: React.FC<ValorizationViewProps> = ({
         <div className="bg-emerald-950 text-white rounded-2xl p-4 border border-emerald-800 shadow-sm">
           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">Total Desviado de Aterro</span>
           <div className="text-3xl font-extrabold text-white mt-1">{totalKg} kg</div>
-          <p className="text-xs text-emerald-300/80 mt-1">100% transformado em recurso útil</p>
+          <p className="text-xs text-emerald-300/80 mt-1">Encaminhado para valorização</p>
         </div>
 
         <div className="bg-slate-900 text-white rounded-2xl p-4 border border-slate-800 shadow-sm">

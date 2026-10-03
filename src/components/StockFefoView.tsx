@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getCurrentUserName } from '../currentUser';
 import {
   Boxes,
   AlertCircle,
@@ -25,15 +26,83 @@ interface StockFefoViewProps {
   onAddMovement: (mov: Omit<StockMovement, 'id'>) => Promise<void> | void;
   onOpenDonationModalWithItem?: (itemName: string, category: WasteCategory, qty: number) => void;
   onOpenInvoiceModal?: () => void;
+  onAddStockItem?: (item: {
+    name: string;
+    category: WasteCategory;
+    quantity: number;
+    unit: StockItem['unit'];
+    batchNumber: string;
+    expiryDate: string;
+    costPerUnit: number;
+    storageType: StockItem['storageType'];
+    supplier: string;
+  }) => Promise<boolean>;
 }
+
+const CATEGORIAS: WasteCategory[] = [
+  'Carne', 'Peixe', 'Frutas', 'Legumes', 'Lacticínios', 'Padaria', 'Água', 'Sumos',
+  'Bebidas Brancas', 'Cerveja', 'Refeições Confecionadas', 'Outros'
+];
 
 export const StockFefoView: React.FC<StockFefoViewProps> = ({
   stockItems,
   stockMovements,
   onAddMovement,
   onOpenDonationModalWithItem,
-  onOpenInvoiceModal
+  onOpenInvoiceModal,
+  onAddStockItem
 }) => {
+  // Modal de novo artigo (entrada manual)
+  const [isNewItemOpen, setIsNewItemOpen] = useState(false);
+  const [niName, setNiName] = useState('');
+  const [niCategory, setNiCategory] = useState<WasteCategory>('Carne');
+  const [niQty, setNiQty] = useState('');
+  const [niUnit, setNiUnit] = useState<StockItem['unit']>('kg');
+  const [niBatch, setNiBatch] = useState('');
+  const [niExpiry, setNiExpiry] = useState('');
+  const [niCost, setNiCost] = useState('');
+  const [niStorage, setNiStorage] = useState<StockItem['storageType']>('Refrigerado');
+  const [niSupplier, setNiSupplier] = useState('');
+
+  const resetNewItem = () => {
+    setNiName(''); setNiCategory('Carne'); setNiQty(''); setNiUnit('kg'); setNiBatch('');
+    setNiExpiry(''); setNiCost(''); setNiStorage('Refrigerado'); setNiSupplier('');
+  };
+
+  const handleSaveNewItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAddStockItem) return;
+    const qty = Number(niQty);
+    if (!niName.trim() || !(qty > 0) || !niExpiry) {
+      alert('Indique o nome, a quantidade (maior que zero) e a data de validade.');
+      return;
+    }
+    if (niExpiry < today) {
+      alert('A data de validade já passou. Um produto vencido não pode dar entrada em stock.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const ok = await onAddStockItem({
+        name: niName.trim(),
+        category: niCategory,
+        quantity: qty,
+        unit: niUnit,
+        batchNumber: niBatch.trim(),
+        expiryDate: niExpiry,
+        costPerUnit: Number(niCost) || 0,
+        storageType: niStorage,
+        supplier: niSupplier.trim()
+      });
+      if (ok) {
+        resetNewItem();
+        setIsNewItemOpen(false);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const [searchTerm, setSearchTerm] = useState('');
   const [fefoFilter, setFefoFilter] = useState<string>('ALL');
   const [storageFilter, setStorageFilter] = useState<string>('ALL');
@@ -45,7 +114,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
   const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
   const [movementType, setMovementType] = useState<'Entrada' | 'Saída' | 'Ajuste / Inventário' | 'Quebra / Desperdício'>('Saída');
   const [movementQty, setMovementQty] = useState<number>(1);
-  const [movementReason, setMovementReason] = useState('Confeção e serviço do dia');
+  const [movementReason, setMovementReason] = useState('');
 
   // Today's date for FEFO calculation
   const today = new Date().toISOString().split('T')[0];
@@ -87,7 +156,20 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
 
   const handleSaveMovement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStockItem || movementQty <= 0) return;
+    if (!selectedStockItem) return;
+    const isAjuste = movementType === 'Ajuste / Inventário';
+    if (isAjuste ? movementQty < 0 : !(movementQty > 0)) {
+      alert('Indique uma quantidade válida.');
+      return;
+    }
+    if (movementType === 'Saída' && getDaysUntilExpiry(selectedStockItem.expiryDate) < 0) {
+      alert('Este produto está fora de validade e não pode sair para confeção. Registe-o como Quebra / Desperdício.');
+      return;
+    }
+    if ((movementType === 'Saída' || movementType === 'Quebra / Desperdício') && movementQty > selectedStockItem.quantity) {
+      alert(`A quantidade é superior ao stock atual (${selectedStockItem.quantity} ${selectedStockItem.unit}).`);
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -98,7 +180,7 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
         quantity: movementQty,
         unit: selectedStockItem.unit,
         date: new Date().toISOString().replace('T', ' ').slice(0, 16),
-        responsible: 'Utilizador Autenticado',
+        responsible: getCurrentUserName() || 'Utilizador',
         reason: movementReason
       });
       setIsMovementModalOpen(false);
@@ -136,9 +218,24 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
             </button>
           )}
 
+          {onAddStockItem && (
+            <button
+              type="button"
+              onClick={() => setIsNewItemOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Artigo</span>
+            </button>
+          )}
+
           <button
             onClick={() => {
-              if (stockItems.length > 0) handleOpenMovementModal(stockItems[0]);
+              if (stockItems.length > 0) {
+                handleOpenMovementModal(sortedFefoItems[0] || stockItems[0]);
+              } else {
+                alert('Ainda não há artigos em stock. Use "Novo Artigo" ou carregue uma fatura para dar entrada.');
+              }
             }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-md transition-all"
           >
@@ -406,18 +503,111 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
         </div>
       </div>
 
+      {/* Novo Artigo (entrada manual) */}
+      {isNewItemOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-bold text-slate-900 text-base">Novo Artigo em Stock</h3>
+              <button type="button" aria-label="Fechar" onClick={() => setIsNewItemOpen(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            <form onSubmit={handleSaveNewItem} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-nome">Nome do produto *</label>
+                <input id="ni-nome" type="text" required value={niName} onChange={(e) => setNiName(e.target.value)}
+                  placeholder="Ex.: Peito de frango" className="w-full px-3 py-2 rounded-xl border" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-cat">Categoria</label>
+                  <select id="ni-cat" value={niCategory} onChange={(e) => setNiCategory(e.target.value as WasteCategory)} className="w-full px-3 py-2 rounded-xl border">
+                    {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-cons">Conservação</label>
+                  <select id="ni-cons" value={niStorage} onChange={(e) => setNiStorage(e.target.value as StockItem['storageType'])} className="w-full px-3 py-2 rounded-xl border">
+                    <option value="Refrigerado">Refrigerado (+2ºC a +5ºC)</option>
+                    <option value="Congelado">Congelado (-18ºC)</option>
+                    <option value="Seco / Ambiente">Seco / Ambiente</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-qtd">Quantidade *</label>
+                  <input id="ni-qtd" type="number" step="0.01" min="0" required value={niQty} onChange={(e) => setNiQty(e.target.value)} className="w-full px-3 py-2 rounded-xl border" />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-un">Unidade</label>
+                  <select id="ni-un" value={niUnit} onChange={(e) => setNiUnit(e.target.value as StockItem['unit'])} className="w-full px-3 py-2 rounded-xl border">
+                    <option value="kg">kg</option>
+                    <option value="L">L</option>
+                    <option value="un">un</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-custo">Custo / unid. (€)</label>
+                  <input id="ni-custo" type="number" step="0.01" min="0" value={niCost} onChange={(e) => setNiCost(e.target.value)} className="w-full px-3 py-2 rounded-xl border" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-val">Data de validade *</label>
+                  <input id="ni-val" type="date" required min={today} value={niExpiry} onChange={(e) => setNiExpiry(e.target.value)} className="w-full px-3 py-2 rounded-xl border" />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-lote">Lote</label>
+                  <input id="ni-lote" type="text" value={niBatch} onChange={(e) => setNiBatch(e.target.value)} className="w-full px-3 py-2 rounded-xl border" />
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1" htmlFor="ni-forn">Fornecedor</label>
+                <input id="ni-forn" type="text" value={niSupplier} onChange={(e) => setNiSupplier(e.target.value)} className="w-full px-3 py-2 rounded-xl border" />
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onClick={() => setIsNewItemOpen(false)} disabled={isSubmitting} className="px-4 py-2 rounded-xl border font-semibold text-slate-700">Cancelar</button>
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 disabled:opacity-50">
+                  {isSubmitting ? 'A guardar...' : 'Dar Entrada'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Movement Modal */}
       {isMovementModalOpen && selectedStockItem && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="font-bold text-slate-900 text-base">Registar Movimento de Stock</h3>
-              <button onClick={() => setIsMovementModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button type="button" aria-label="Fechar" onClick={() => setIsMovementModalOpen(false)} className="text-slate-400 hover:text-slate-700">
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleSaveMovement} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1" htmlFor="mov-artigo">Artigo</label>
+                <select
+                  id="mov-artigo"
+                  value={selectedStockItem.id}
+                  onChange={(e) => {
+                    const it = stockItems.find((x) => x.id === e.target.value);
+                    if (it) setSelectedStockItem(it);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border font-medium"
+                >
+                  {[...stockItems]
+                    .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime())
+                    .map((it) => (
+                      <option key={it.id} value={it.id}>
+                        {it.name} — lote {it.batchNumber || 'N/A'} — val. {it.expiryDate}
+                      </option>
+                    ))}
+                </select>
+              </div>
               <div className="bg-slate-50 p-3 rounded-xl border">
                 <span className="font-bold text-slate-900 text-sm block">{selectedStockItem.name}</span>
                 <span className="text-slate-500">Lote: {selectedStockItem.batchNumber || 'N/A'} | Stock atual: {selectedStockItem.quantity} {selectedStockItem.unit}</span>
@@ -438,12 +628,13 @@ export const StockFefoView: React.FC<StockFefoViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Quantidade ({selectedStockItem.unit})</label>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {movementType === 'Ajuste / Inventário' ? 'Quantidade contada no inventário' : 'Quantidade'} ({selectedStockItem.unit})
+                </label>
                 <input
                   type="number"
                   step="0.1"
-                  min="0.1"
-                  max={movementType === 'Saída' ? selectedStockItem.quantity : 10000}
+                  min="0"
                   value={movementQty}
                   onChange={(e) => setMovementQty(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl border font-bold text-sm"

@@ -106,6 +106,16 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
       };
     }
 
+    if (message.includes('503') || message.includes('UNAVAILABLE') || message.includes('overloaded') || message.includes('high demand')) {
+      return {
+        code: 503,
+        message: 'O serviço de IA da Google está sobrecarregado neste momento. Não é uma falha da aplicação — tente novamente dentro de alguns minutos.',
+        modelUsed: attemptedModel,
+        timestamp: new Date().toLocaleTimeString('pt-PT'),
+        type: 'UNKNOWN'
+      };
+    }
+
     if (message.includes('429') || message.includes('quota') || message.includes('RESOURCE_EXHAUSTED')) {
       return {
         code: 429,
@@ -128,11 +138,28 @@ export const AIPredictionsView: React.FC<AIPredictionsViewProps> = ({
 
     return {
       code: err?.status || 500,
-      message: message || 'Ocorreu um erro ao comunicar com os servidores do Gemini.',
+      message: 'Não foi possível contactar o serviço de IA. Verifique a ligação à internet e tente novamente.',
       modelUsed: attemptedModel,
       timestamp: new Date().toLocaleTimeString('pt-PT'),
       type: 'UNKNOWN'
     };
+  };
+
+  // Repete o pedido quando o serviço da Google está momentaneamente sobrecarregado (503/429)
+  const withRetry = async <T,>(fn: () => Promise<T>, attempts = 3): Promise<T> => {
+    let lastErr: any;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await fn();
+      } catch (err: any) {
+        lastErr = err;
+        const msg = String(err?.message || err);
+        const transient = /503|UNAVAILABLE|overloaded|high demand|429|RESOURCE_EXHAUSTED/i.test(msg);
+        if (!transient || i === attempts - 1) throw err;
+        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+      }
+    }
+    throw lastErr;
   };
 
   // Trigger AI Forecast with Automatic Fallback & Error Handling
@@ -213,13 +240,13 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
       let responseText = '';
 
       try {
-        const response = await ai.models.generateContent({
+        const response = await withRetry(() => ai.models.generateContent({
           model: currentModelToUse,
           contents: prompt,
           config: {
             responseMimeType: 'application/json'
           }
-        });
+        }));
         responseText = response.text || '';
       } catch (firstError: any) {
         console.warn(`Falha no modelo principal (${currentModelToUse}), tentar modelo de recurso (${FALLBACK_MODEL})...`, firstError);
@@ -228,13 +255,13 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         currentModelToUse = FALLBACK_MODEL;
         setSelectedModel(FALLBACK_MODEL);
 
-        const responseFallback = await ai.models.generateContent({
+        const responseFallback = await withRetry(() => ai.models.generateContent({
           model: FALLBACK_MODEL,
           contents: prompt,
           config: {
             responseMimeType: 'application/json'
           }
-        });
+        }));
         responseText = responseFallback.text || '';
       }
 
@@ -305,7 +332,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         history: validHistory
       });
 
-      const result = await chat.sendMessage({ message: userText });
+      const result = await withRetry(() => chat.sendMessage({ message: userText }));
       const replyText = result.text || 'Sem resposta disponível de momento.';
 
       setChatMessages((prev) => [...prev, { sender: 'bot', text: replyText }]);
@@ -317,7 +344,7 @@ Responde EXCLUSIVAMENTE em formato JSON estruturado com o seguinte esquema:
         ...prev,
         {
           sender: 'bot',
-          text: `⚠️ Erro na comunicação com a IA: ${details.message} (Modelo: ${selectedModel}). A Mudar para resposta assistida local.`,
+          text: `Não consegui responder agora. ${details.message}`,
           isError: true
         }
       ]);

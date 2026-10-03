@@ -75,9 +75,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const monthlyWasteTrend = computeMonthlyWasteTrend(wasteLogs);
 
   // Variação de hoje face à média diária do mês (só se houver dados)
+  // Compara o dia de hoje com a média diária dos dias anteriores do mês (sem contar hoje)
+  const hoje = new Date();
+  const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+  const mesStr = hojeStr.slice(0, 7);
+  const diasAnteriores = hoje.getDate() - 1;
+  const kgDiasAnteriores = wasteLogs
+    .filter((l) => (l.date || '').startsWith(mesStr) && (l.date || '').slice(0, 10) < hojeStr)
+    .reduce((acc, l) => acc + (l.quantity || 0), 0);
+  const mediaAnterior = diasAnteriores > 0 ? kgDiasAnteriores / diasAnteriores : 0;
   const dailyVariation =
-    metrics.kgPerDayAvg > 0
-      ? Math.round(((metrics.totalWasteKgToday - metrics.kgPerDayAvg) / metrics.kgPerDayAvg) * 100)
+    mediaAnterior > 0
+      ? Math.round(((metrics.totalWasteKgToday - mediaAnterior) / mediaAnterior) * 100)
       : null;
 
   return (
@@ -136,7 +145,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className={`${dailyVariation <= 0 ? 'text-emerald-600' : 'text-rose-600'} font-semibold`}>
                   {dailyVariation > 0 ? '+' : ''}{dailyVariation}%
                 </span>{' '}
-                vs. média diária
+                vs. média dos dias anteriores
               </>
             )}
           </p>
@@ -291,14 +300,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-base font-bold text-slate-900">Evolução Mensal do Desperdício</h3>
-              <p className="text-xs text-slate-500">Comparativo de total em kg vs. Meta de Redução</p>
+              <p className="text-xs text-slate-500">Total de desperdício registado por mês (kg)</p>
             </div>
             <div className="flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1 text-slate-600 font-medium">
                 <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" /> Realizado (kg)
-              </span>
-              <span className="flex items-center gap-1 text-slate-600 font-medium">
-                <span className="w-3 h-0.5 bg-slate-400 inline-block" /> Meta (kg)
               </span>
             </div>
           </div>
@@ -318,7 +324,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Tooltip
                   formatter={(value: any, name: string) => [
                     `${value} kg`,
-                    name === 'kg' ? 'Desperdício Total' : 'Meta'
+                    'Desperdício Total'
                   ]}
                   contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '12px' }}
                 />

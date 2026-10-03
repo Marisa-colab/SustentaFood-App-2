@@ -24,7 +24,7 @@ import {
   Legend
 } from 'recharts';
 import { SummaryMetrics, WasteLog } from '../types';
-import { computeSectorLossBreakdown } from '../wasteStats';
+import { computeSectorLossBreakdown, computeMonthTotals } from '../wasteStats';
 
 interface EconomicAnalysisViewProps {
   metrics: SummaryMetrics;
@@ -36,6 +36,13 @@ export const EconomicAnalysisView: React.FC<EconomicAnalysisViewProps> = ({
   wasteLogs
 }) => {
   const sectorLossBreakdown = computeSectorLossBreakdown(wasteLogs);
+  // Média diária do mês anterior completo, para comparação real
+  const refHoje = new Date();
+  const refPrev = new Date(refHoje.getFullYear(), refHoje.getMonth() - 1, 1);
+  const prevTotals = computeMonthTotals(wasteLogs, refPrev.getFullYear(), refPrev.getMonth());
+  const prevDailyAvg = prevTotals.kg / new Date(refHoje.getFullYear(), refHoje.getMonth(), 0).getDate();
+  const dailyChange =
+    prevDailyAvg > 0 ? Math.round(((metrics.kgPerDayAvg - prevDailyAvg) / prevDailyAvg) * 1000) / 10 : null;
   // Sample Example calculation state (User can try custom numbers in live calculator)
   const [calcKg, setCalcKg] = useState<number>(120);
   const [calcCostPerKg, setCalcCostPerKg] = useState<number>(12.00);
@@ -81,7 +88,13 @@ export const EconomicAnalysisView: React.FC<EconomicAnalysisViewProps> = ({
             {metrics.kgPerDayAvg.toFixed(1)} <span className="text-sm font-semibold text-slate-400">kg/dia</span>
           </div>
           <p className="text-xs text-emerald-400 mt-2 font-medium flex items-center gap-1">
-            <TrendingDown className="w-3.5 h-3.5" /> -8.4% em relação ao mês anterior
+            {dailyChange === null ? (
+              <span className="text-slate-400">Sem dados do mês anterior</span>
+            ) : (
+              <>
+                <TrendingDown className="w-3.5 h-3.5" /> {dailyChange > 0 ? '+' : ''}{dailyChange}% em relação ao mês anterior
+              </>
+            )}
           </p>
         </div>
 
@@ -89,10 +102,14 @@ export const EconomicAnalysisView: React.FC<EconomicAnalysisViewProps> = ({
         <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-800">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Desperdício / Refeição</span>
           <div className="text-3xl font-extrabold text-white mt-1">
-            {(metrics.kgPerMeal * 1000).toFixed(0)} <span className="text-sm font-semibold text-slate-400">g/refeição</span>
+            {metrics.mealsServedMonth > 0 ? (
+              <>{(metrics.kgPerMeal * 1000).toFixed(0)} <span className="text-sm font-semibold text-slate-400">g/refeição</span></>
+            ) : '—'}
           </div>
           <p className="text-xs text-slate-400 mt-2">
-            Base: {metrics.mealsServedMonth.toLocaleString()} refeições servidas
+            {metrics.mealsServedMonth > 0
+              ? `Base: ${metrics.mealsServedMonth.toLocaleString('pt-PT')} refeições servidas`
+              : 'Refeições servidas ainda não registadas'}
           </p>
         </div>
 
@@ -184,7 +201,7 @@ export const EconomicAnalysisView: React.FC<EconomicAnalysisViewProps> = ({
           <div className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 text-emerald-950 space-y-2 text-xs">
             <span className="font-bold text-emerald-800 text-sm block">Potencial de Poupança Directa</span>
             <p className="text-slate-700 leading-relaxed">
-              Ao aplicar a rotação FEFO e ajuste de porção neste produto, reduziria a perda em 70%:
+              Exemplo: se a rotação FEFO e o ajuste de porções reduzissem a perda deste produto em 70%, recuperaria:
             </p>
             <div className="text-2xl font-bold text-emerald-700 pt-1">
               + {(customLossMonthly * 0.70).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} € / mês recuperados!
