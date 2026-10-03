@@ -236,7 +236,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <p className="leading-relaxed">
             {wasteLogs.length === 0
               ? 'Não há registos de desperdício neste período.'
-              : `Neste período foram registados ${wasteLogs.length} ${wasteLogs.length === 1 ? 'registo' : 'registos'} de desperdício, num total de ${mesSel.kg.toFixed(1)} kg e ${mesSel.cost.toFixed(2)} € de perda. ${
+              : `Neste período ${wasteLogs.length === 1 ? 'foi registado 1 registo' : `foram registados ${wasteLogs.length} registos`} de desperdício, num total de ${mesSel.kg.toFixed(1)} kg e ${mesSel.cost.toFixed(2)} € de perda. ${
                   variacaoKg === null
                     ? 'Ainda não há dados do mês anterior para comparação.'
                     : variacaoKg <= 0
